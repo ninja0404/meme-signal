@@ -1,0 +1,28 @@
+logger:
+  output: "stdout"
+  debug: false
+  level: INFO
+  add_caller: true
+  caller_skip: 1
+
+kafka:
+  brokers:
+    - alikafka-pre-public-intl-sg-nnu47okt601-1-vpc.alikafka.aliyuncs.com:9094
+    - alikafka-pre-public-intl-sg-nnu47okt601-2-vpc.alikafka.aliyuncs.com:9094
+    - alikafka-pre-public-intl-sg-nnu47okt601-3-vpc.alikafka.aliyuncs.com:9094
+
+  consumer:
+    topics:
+      - "test-solana-tx"
+    group_id: "test-signal"
+    assignor: "sticky"
+    version: "2.6.2"
+    client_id: "test-signal"
+    enable_auto_commit: false
+    enable_auto_store: false
+    auto_commit_interval: 5000
+    read_timeout: 3000
+    security_protocol: "SASL_PLAINTEXT"
+    sasl_username: "dev"
+    sasl_password: "XdkPv8j092!Pjo0"
+    sasl_mechanism: "PLAIN"
