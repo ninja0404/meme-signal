@@ -36,23 +36,17 @@ type Worker struct {
 	Detectors    []Detector
 	ctx          context.Context
 	mutex        sync.RWMutex
-
-	// 信号去重缓存
-	sentSignals    map[string]time.Time // key: tokenAddress_signalType, value: 发送时间
-	signalCooldown time.Duration        // 信号冷却时间，防止重复发送
 }
 
 // NewWorker 创建新的工作协程
 func NewWorker(id int, ctx context.Context, signalChan chan *model.Signal) *Worker {
 	return &Worker{
-		ID:             id,
-		TokenWindows:   make(map[string]*TokenWindow),
-		TxChan:         make(chan *model.Transaction, 100_000),
-		SignalChan:     signalChan,
-		Detectors:      make([]Detector, 0),
-		ctx:            ctx,
-		sentSignals:    make(map[string]time.Time),
-		signalCooldown: 1 * time.Hour, // 1小时内同一代币同一类型信号只发送一次
+		ID:           id,
+		TokenWindows: make(map[string]*TokenWindow),
+		TxChan:       make(chan *model.Transaction, 100_000),
+		SignalChan:   signalChan,
+		Detectors:    make([]Detector, 0),
+		ctx:          ctx,
 	}
 }
 
@@ -113,55 +107,17 @@ func (w *Worker) runDetectors(window *TokenWindow, tx *model.Transaction) {
 	for _, detector := range w.Detectors {
 		signals := detector.Detect(stats, tx, window)
 		for _, signal := range signals {
-			// 检查信号去重
-			if w.shouldSendSignal(signal) {
-				// 记录已发送的信号
-				w.recordSentSignal(signal)
-
-				select {
-				case w.SignalChan <- signal:
-					logger.Info("🚨 Worker检测到信号",
-						logger.Int("worker_id", w.ID),
-						logger.String("type", string(signal.Type)),
-						logger.String("token", signal.TokenAddress))
-				case <-w.ctx.Done():
-					return
-				}
-			} else {
-				logger.Debug("⏭️ 信号已在冷却期内，跳过发送",
+			select {
+			case w.SignalChan <- signal:
+				logger.Info("🚨 Worker检测到信号",
 					logger.Int("worker_id", w.ID),
 					logger.String("type", string(signal.Type)),
 					logger.String("token", signal.TokenAddress))
+			case <-w.ctx.Done():
+				return
 			}
 		}
 	}
-}
-
-// shouldSendSignal 检查是否应该发送信号（去重检查）
-func (w *Worker) shouldSendSignal(signal *model.Signal) bool {
-	w.mutex.RLock()
-	defer w.mutex.RUnlock()
-
-	// 生成信号key：tokenAddress_signalType
-	signalKey := fmt.Sprintf("%s_%s", signal.TokenAddress, string(signal.Type))
-
-	// 检查是否在冷却期内
-	if lastSentTime, exists := w.sentSignals[signalKey]; exists {
-		if time.Since(lastSentTime) < w.signalCooldown {
-			return false // 还在冷却期内，不发送
-		}
-	}
-
-	return true // 可以发送
-}
-
-// recordSentSignal 记录已发送的信号
-func (w *Worker) recordSentSignal(signal *model.Signal) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
-	signalKey := fmt.Sprintf("%s_%s", signal.TokenAddress, string(signal.Type))
-	w.sentSignals[signalKey] = time.Now()
 }
 
 // cleanup 清理过期数据
@@ -179,17 +135,9 @@ func (w *Worker) cleanup() {
 		}
 	}
 
-	// 清理过期的信号记录
-	for signalKey, sentTime := range w.sentSignals {
-		if now.Sub(sentTime) > w.signalCooldown {
-			delete(w.sentSignals, signalKey)
-		}
-	}
-
 	logger.Debug("🧹 Worker清理完成",
 		logger.Int("worker_id", w.ID),
-		logger.Int("active_tokens", len(w.TokenWindows)),
-		logger.Int("cached_signals", len(w.sentSignals)))
+		logger.Int("active_tokens", len(w.TokenWindows)))
 }
 
 // Engine 信号检测引擎
@@ -253,21 +201,15 @@ func (e *Engine) statsMonitor() {
 		case <-ticker.C:
 			// 获取所有Worker的统计信息
 			totalTokens := 0
-			totalCachedSignals := 0
 			workerStats := e.GetWorkerStats()
-			deduplicationStats := e.GetSignalDeduplicationStats()
 
 			for _, count := range workerStats {
 				totalTokens += count
-			}
-			for _, dedupStat := range deduplicationStats {
-				totalCachedSignals += dedupStat["cached_signals"].(int)
 			}
 
 			logger.Info("💹 检测引擎运行统计",
 				logger.Int("total_workers", len(e.workers)),
 				logger.Int("total_tokens_tracked", totalTokens),
-				logger.Int("cached_signals", totalCachedSignals),
 				logger.String("window_size", WindowSize.String()))
 
 			// 如果有代币在跟踪，输出最活跃的Worker统计
@@ -373,32 +315,6 @@ func (e *Engine) GetWorkerStats() map[int]int {
 		worker.mutex.RUnlock()
 	}
 	return stats
-}
-
-// GetSignalDeduplicationStats 获取信号去重统计信息
-func (e *Engine) GetSignalDeduplicationStats() map[int]map[string]interface{} {
-	stats := make(map[int]map[string]interface{})
-	for i, worker := range e.workers {
-		worker.mutex.RLock()
-		stats[i] = map[string]interface{}{
-			"cached_signals":   len(worker.sentSignals),
-			"cooldown_minutes": int(worker.signalCooldown.Minutes()),
-		}
-		worker.mutex.RUnlock()
-	}
-	return stats
-}
-
-// SetSignalCooldown 设置所有Worker的信号冷却时间
-func (e *Engine) SetSignalCooldown(cooldown time.Duration) {
-	for _, worker := range e.workers {
-		worker.mutex.Lock()
-		worker.signalCooldown = cooldown
-		worker.mutex.Unlock()
-	}
-
-	logger.Info("⏰ 已更新信号冷却时间",
-		logger.String("cooldown", cooldown.String()))
 }
 
 func generateSignalID() string {

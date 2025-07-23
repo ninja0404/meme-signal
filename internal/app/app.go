@@ -159,27 +159,20 @@ func (app *Application) Shutdown() {
 	// 获取统计信息
 	stats := app.pipeline.GetStats()
 	workerStats := app.pipeline.GetDetectorEngine().GetWorkerStats()
-	deduplicationStats := app.pipeline.GetDetectorEngine().GetSignalDeduplicationStats()
 
 	// 计算worker负载均衡情况
 	totalTokens := 0
-	totalCachedSignals := 0
 	for _, count := range workerStats {
 		totalTokens += count
-	}
-	for _, dedupStat := range deduplicationStats {
-		totalCachedSignals += dedupStat["cached_signals"].(int)
 	}
 
 	logger.Info("📈 服务运行统计",
 		logger.Int64("transactions_processed", stats.TransactionsProcessed),
 		logger.Int64("signals_detected", stats.SignalsDetected),
 		logger.Int64("errors_count", stats.ErrorsCount),
-		logger.Int("total_tokens_tracked", totalTokens),
-		logger.Int("total_cached_signals", totalCachedSignals))
+		logger.Int("total_tokens_tracked", totalTokens))
 
 	logger.Info("⚡ Worker负载分布", logger.Any("worker_token_counts", workerStats))
-	logger.Info("🔄 信号去重统计", logger.Any("deduplication_stats", deduplicationStats))
 
 	logger.Info("✨ Meme交易信号监听服务已成功关闭")
 }
