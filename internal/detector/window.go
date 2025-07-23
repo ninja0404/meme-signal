@@ -9,7 +9,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// WindowSize 必须在外部定义，例如：const WindowSize = 5 * time.Minute
 // InitialCapacity 为每个 token 窗口切片的预估初始容量
 const InitialCapacity = 1000
 
@@ -191,6 +190,135 @@ func (tw *TokenWindow) GetLastUpdate() time.Time {
 	tw.mutex.RLock()
 	defer tw.mutex.RUnlock()
 	return tw.lastUpdate
+}
+
+// GetLast30SecondStats 获取最后30秒的统计数据（优化版：一次遍历获取所有统计）
+func (tw *TokenWindow) GetLast30SecondStats() *model.TokenStats {
+	return tw.getLast30SecondStatsWithBigTx(decimal.Zero)
+}
+
+// GetLast30SecondBigTransactionStats 获取最后30秒大额交易统计（复用优化后的方法）
+func (tw *TokenWindow) GetLast30SecondBigTransactionStats(bigTransactionThreshold decimal.Decimal) map[string]interface{} {
+	// 使用优化后的方法，避免重复遍历
+	stats := tw.getLast30SecondStatsWithBigTx(bigTransactionThreshold)
+
+	// 从stats.Data中提取大额交易统计
+	if bigTxData, exists := stats.Data["big_tx_stats"]; exists {
+		return bigTxData.(map[string]interface{})
+	}
+
+	// 如果没有大额交易数据，返回空统计
+	return map[string]interface{}{
+		"big_tx_users":      0,
+		"big_tx_buy_count":  0,
+		"big_tx_sell_count": 0,
+		"total_big_tx":      0,
+	}
+}
+
+// getLast30SecondStatsWithBigTx 优化后的内部方法：一次遍历获取所有30秒统计
+func (tw *TokenWindow) getLast30SecondStatsWithBigTx(bigTransactionThreshold decimal.Decimal) *model.TokenStats {
+	tw.mutex.RLock()
+	defer tw.mutex.RUnlock()
+
+	stats := &model.TokenStats{
+		Address:    tw.TokenAddress,
+		LastUpdate: tw.lastUpdate,
+		Data:       make(map[string]interface{}),
+	}
+
+	if len(tw.transactions) == 0 {
+		return stats
+	}
+
+	// 计算30秒前的时间点
+	last30SecondsCutoff := tw.lastUpdate.Add(-30 * time.Second)
+
+	// 普通统计变量
+	var txCount30s int
+	var volume30s decimal.Decimal = decimal.Zero
+	var price30sAgo decimal.Decimal = decimal.Zero
+	var buyCount30s, sellCount30s int
+	wallets30s := make(map[string]bool)
+
+	// 大额交易统计变量
+	var needBigTxStats = !bigTransactionThreshold.IsZero()
+	bigTxUsers := make(map[string]bool)
+	bigTxBuyCount := 0
+	bigTxSellCount := 0
+	totalBigTx := 0
+
+	// 一次遍历获取所有统计数据
+	for i := len(tw.transactions) - 1; i >= 0; i-- {
+		tx := tw.transactions[i]
+		if tx.BlockTime.Before(last30SecondsCutoff) {
+			// 如果这笔交易早于30秒前，记录30秒前的价格
+			if price30sAgo.IsZero() {
+				price30sAgo = tx.PriceUSD
+			}
+			break
+		}
+
+		// 这笔交易在30秒内 - 更新普通统计
+		txCount30s++
+		volume30s = volume30s.Add(tx.AmountUSD)
+		wallets30s[tx.UserWallet] = true
+
+		switch tx.Action {
+		case common.BuyAction:
+			buyCount30s++
+		case common.SellAction:
+			sellCount30s++
+		}
+
+		// 如果需要大额交易统计，同时更新大额交易统计
+		if needBigTxStats && tx.AmountUSD.GreaterThanOrEqual(bigTransactionThreshold) {
+			totalBigTx++
+			bigTxUsers[tx.UserWallet] = true
+
+			switch tx.Action {
+			case common.BuyAction:
+				bigTxBuyCount++
+			case common.SellAction:
+				bigTxSellCount++
+			}
+		}
+	}
+
+	// 如果没有30秒前的价格，使用最早的交易价格
+	if price30sAgo.IsZero() && len(tw.transactions) > 0 {
+		price30sAgo = tw.transactions[0].PriceUSD
+	}
+
+	// 计算30秒内的价格变化
+	currentPrice := tw.lastPrice
+	var priceChangePercent30s decimal.Decimal
+	if !price30sAgo.IsZero() {
+		priceChangePercent30s = currentPrice.
+			Sub(price30sAgo).
+			Div(price30sAgo).
+			Mul(decimal.NewFromInt(100))
+	}
+
+	// 设置普通统计数据
+	stats.TxCount5m = txCount30s // 复用字段表示30秒内交易数
+	stats.Volume5m = volume30s   // 复用字段表示30秒内交易量
+	stats.UniqueHolders = len(wallets30s)
+	stats.StartPrice = price30sAgo
+	stats.CurrentPrice = currentPrice
+	stats.PriceChangePercent = priceChangePercent30s
+
+	// 如果需要，设置大额交易统计数据
+	if needBigTxStats {
+		stats.Data["big_tx_stats"] = map[string]interface{}{
+			"big_tx_users":      len(bigTxUsers),
+			"big_tx_buy_count":  bigTxBuyCount,
+			"big_tx_sell_count": bigTxSellCount,
+			"total_big_tx":      totalBigTx,
+		}
+	}
+
+	return stats
 }
 
 // GetWindowInfo 仅用于调试打印

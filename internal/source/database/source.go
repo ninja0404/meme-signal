@@ -89,12 +89,57 @@ func (s *Source) startPolling() {
 	// 首次查询
 	s.performInitialQuery()
 
+	// 定期查询
+	totalProcessed := int64(0)
+	queryCount := int64(0)
+	lastStatsTime := time.Now()
+
 	for {
 		select {
 		case <-s.ctx.Done():
+			logger.Info("🛑 数据库数据源收到停止信号")
 			return
 		case <-ticker.C:
-			s.performIncrementalQuery()
+			queryCount++
+
+			// 获取最新ID之后的交易
+			swapTxs, err := s.repo.GetTransactionsAfterId(s.lastId, s.config.BatchSize)
+			if err != nil {
+				s.sendError(fmt.Errorf("查询交易失败: %w", err))
+				continue
+			}
+
+			processed := 0
+			for _, swapTx := range swapTxs {
+				transaction := s.convertSwapTxToTransaction(swapTx)
+				if transaction != nil {
+					select {
+					case s.txChan <- transaction:
+						processed++
+						totalProcessed++
+						s.lastId = swapTx.ID
+					case <-s.ctx.Done():
+						return
+					}
+				}
+			}
+
+			// 每30秒输出一次统计信息
+			if time.Since(lastStatsTime) >= 30*time.Second {
+				logger.Info("📊 数据源运行统计",
+					logger.Int64("query_count", queryCount),
+					logger.Int64("total_processed", totalProcessed),
+					logger.Int("current_batch", processed),
+					logger.Uint64("last_id", s.lastId),
+					logger.String("query_interval", s.config.QueryInterval.String()))
+				lastStatsTime = time.Now()
+			}
+
+			if processed > 0 {
+				logger.Debug("🔄 处理新交易",
+					logger.Int("count", processed),
+					logger.Uint64("last_id", s.lastId))
+			}
 		}
 	}
 }
@@ -106,15 +151,28 @@ func (s *Source) performInitialQuery() {
 	// 计算5分钟前的时间
 	since := time.Now().Add(-time.Duration(s.config.InitWindowMinutes) * time.Minute)
 
-	// 分批查询
-	offset := 0
+	// 获取起始ID
+	startId, err := s.repo.GetMinIdSince(since)
+	if err != nil {
+		s.sendError(fmt.Errorf("获取起始ID失败: %w", err))
+		return
+	}
+
+	if startId == 0 {
+		logger.Info("📭 5分钟内没有交易数据")
+		return
+	}
+
+	// 基于ID的分批查询
+	currentId := startId - 1 // 从startId的前一个开始，确保包含startId
 	totalProcessed := 0
+	batchCount := 0
 
 	for {
-		// 查询数据
-		swapTxs, err := s.repo.GetLatestTransactions(since, s.config.BatchSize)
+		// 查询当前ID之后的数据
+		swapTxs, err := s.repo.GetTransactionsAfterId(currentId, s.config.BatchSize)
 		if err != nil {
-			s.sendError(fmt.Errorf("首次查询失败: %w", err))
+			s.sendError(fmt.Errorf("分批查询失败 (batch=%d, currentId=%d): %w", batchCount, currentId, err))
 			return
 		}
 
@@ -123,62 +181,44 @@ func (s *Source) performInitialQuery() {
 			break
 		}
 
-		// 处理数据
+		batchCount++
+		batchProcessed := 0
+
+		// 处理这一批数据
 		for _, swapTx := range swapTxs {
+			// 检查是否还在时间窗口内
+			if swapTx.BlockTime.Before(since) {
+				continue // 跳过时间窗口外的数据
+			}
+
 			tx := s.convertSwapTxToTransaction(swapTx)
 			if tx != nil {
 				s.sendTransaction(tx)
-				s.lastId = swapTx.ID // 更新最后处理的ID
+				batchProcessed++
 				totalProcessed++
 			}
+			currentId = swapTx.ID // 更新当前处理的最大ID
 		}
 
-		offset += len(swapTxs)
+		logger.Debug("📊 完成分批查询",
+			logger.Int("batch", batchCount),
+			logger.Int("batch_size", len(swapTxs)),
+			logger.Int("batch_processed", batchProcessed),
+			logger.Uint64("current_id", currentId))
 
 		// 如果返回的数据少于批量大小，说明已经查询完毕
 		if len(swapTxs) < s.config.BatchSize {
 			break
 		}
-
-		// 避免过快查询，稍微延迟
-		time.Sleep(100 * time.Millisecond)
 	}
 
+	s.lastId = currentId
 	s.isFirstRun = false
 	logger.Info("✅ 首次查询完成",
+		logger.Int("total_batches", batchCount),
 		logger.Int("total_processed", totalProcessed),
+		logger.Uint64("start_id", startId),
 		logger.Uint64("last_id", s.lastId))
-}
-
-// performIncrementalQuery 执行增量查询（查询最新ID之后的数据）
-func (s *Source) performIncrementalQuery() {
-	// 查询最新数据
-	swapTxs, err := s.repo.GetTransactionsAfterId(s.lastId, s.config.BatchSize)
-	if err != nil {
-		s.sendError(fmt.Errorf("增量查询失败: %w", err))
-		return
-	}
-
-	if len(swapTxs) == 0 {
-		return // 没有新数据
-	}
-
-	// 处理新数据
-	processedCount := 0
-	for _, swapTx := range swapTxs {
-		tx := s.convertSwapTxToTransaction(swapTx)
-		if tx != nil {
-			s.sendTransaction(tx)
-			s.lastId = swapTx.ID
-			processedCount++
-		}
-	}
-
-	if processedCount > 0 {
-		logger.Debug("📈 处理新交易数据",
-			logger.Int("count", processedCount),
-			logger.Uint64("last_id", s.lastId))
-	}
 }
 
 // convertSwapTxToTransaction 将SwapTx转换为Transaction

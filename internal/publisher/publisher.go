@@ -116,15 +116,6 @@ func (p *LogPublisher) Publish(signal *model.Signal) error {
 		logger.Int("severity", signal.Severity),
 		logger.Float64("confidence", signal.Confidence),
 		logger.String("message", signal.Message))
-
-	// 如果有源交易，也记录相关信息
-	if signal.SourceTx != nil {
-		logger.Info("信号源交易信息",
-			logger.String("signature", signal.SourceTx.Signature),
-			logger.String("user", signal.SourceTx.UserWallet),
-			logger.String("amount_usd", signal.SourceTx.AmountUSD.String()))
-	}
-
 	return nil
 }
 

@@ -1,12 +1,12 @@
 logger:
   output: "stdout"
-  debug: false
-  level: INFO
+  debug: true
+  level: DEBUG
   add_caller: true
   caller_skip: 1
 
 polarx:
-  host: "pc-2ev75w4bn1748568x.rwlb.rds.aliyuncs.com"
+  host: "pxc-svrtwlbkzjiksc.polarx.rds.aliyuncs.com"
   port: 3306
   user: "dev_root"
   password: "fbCyEZD!iB9c7JY"

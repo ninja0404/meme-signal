@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -56,6 +57,11 @@ var (
 )
 
 func newLogger(c *Config) *zap.Logger {
+	// 强制启用颜色输出（用于美观的控制台日志）
+	//if c.Debug {
+	color.NoColor = false
+	//}
+
 	zapOptions := make([]zap.Option, 0)
 	zapOptions = append(zapOptions, zap.AddStacktrace(zap.DPanicLevel))
 	if c.AddCaller {
@@ -152,13 +158,13 @@ func debugEncodeLevel(lv zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 		colorize = color.GreenString
 	case zapcore.WarnLevel:
 		colorize = color.YellowString
-	case zapcore.ErrorLevel, zap.PanicLevel, zap.DPanicLevel, zap.FatalLevel:
+	case zapcore.ErrorLevel, zapcore.PanicLevel, zapcore.DPanicLevel, zapcore.FatalLevel:
 		colorize = color.RedString
 	default:
 	}
-	enc.AppendString(colorize(lv.CapitalString()))
+	enc.AppendString(colorize(fmt.Sprintf("[%s]", lv.CapitalString())))
 }
 
 func timeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString(t.UTC().Format("2006-01-02 15:04:05.000"))
+	enc.AppendString(t.Local().Format("2006-01-02 15:04:05.000"))
 }

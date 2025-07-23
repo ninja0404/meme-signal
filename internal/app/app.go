@@ -83,7 +83,7 @@ func (app *Application) setupDataSources() {
 	sourceConfig := database.SourceConfig{
 		QueryInterval:     1 * time.Second, // 每秒查询一次
 		InitWindowMinutes: 5,               // 首次查询5分钟内数据
-		BatchSize:         1000,            // 每批查询1000条
+		BatchSize:         10000,           // 每批查询1000条
 	}
 
 	// 创建数据库数据源
@@ -106,9 +106,11 @@ func (app *Application) Run() error {
 	}
 
 	logger.Info("🔥 Meme交易信号监听服务已启动，开始监控DEX交易...")
-	logger.Info("📊 复合信号检测: 代币涨幅≥15% + 交易量≥30k USD")
+	logger.Info("📊 复合信号检测: 5分钟内涨幅≥20% + 最后30秒涨幅≥15% + 5分钟内交易次数>300笔 + 独立钱包数>50个 + 大额交易条件")
+	logger.Info("💰 大额交易条件: 30秒内>1000U交易的用户数≥5个 + 大额买卖比≥2:1")
 	logger.Info("⚡ 分片处理架构: 16个Worker协程 | 5分钟时间窗口 | 基于Token地址Hash分片")
 	logger.Info("🗄️ 数据源: 数据库轮询 | 每秒查询 | 增量处理")
+	logger.Info("🔄 信号去重: 1小时冷却期 | 防止重复发送 | 每个代币每种信号类型限制")
 
 	// 等待终止信号
 	app.waitForShutdown()
@@ -146,20 +148,27 @@ func (app *Application) Shutdown() {
 	// 获取统计信息
 	stats := app.pipeline.GetStats()
 	workerStats := app.pipeline.GetDetectorEngine().GetWorkerStats()
+	deduplicationStats := app.pipeline.GetDetectorEngine().GetSignalDeduplicationStats()
 
 	// 计算worker负载均衡情况
 	totalTokens := 0
+	totalCachedSignals := 0
 	for _, count := range workerStats {
 		totalTokens += count
+	}
+	for _, dedupStat := range deduplicationStats {
+		totalCachedSignals += dedupStat["cached_signals"].(int)
 	}
 
 	logger.Info("📈 服务运行统计",
 		logger.Int64("transactions_processed", stats.TransactionsProcessed),
 		logger.Int64("signals_detected", stats.SignalsDetected),
 		logger.Int64("errors_count", stats.ErrorsCount),
-		logger.Int("total_tokens_tracked", totalTokens))
+		logger.Int("total_tokens_tracked", totalTokens),
+		logger.Int("total_cached_signals", totalCachedSignals))
 
 	logger.Info("⚡ Worker负载分布", logger.Any("worker_token_counts", workerStats))
+	logger.Info("🔄 信号去重统计", logger.Any("deduplication_stats", deduplicationStats))
 
 	logger.Info("✨ Meme交易信号监听服务已成功关闭")
 }

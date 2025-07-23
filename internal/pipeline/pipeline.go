@@ -155,11 +155,6 @@ func (p *Pipeline) processErrors() {
 
 // handleTransaction 处理单个交易
 func (p *Pipeline) handleTransaction(tx *model.Transaction) {
-	logger.Debug("处理交易数据",
-		logger.String("tx_id", tx.ID),
-		logger.String("signature", tx.Signature),
-		logger.String("token", tx.TokenAddress))
-
 	// 使用检测引擎处理交易
 	p.detectorEngine.ProcessTransaction(tx)
 }

@@ -57,16 +57,17 @@ type Signal struct {
 
 // TokenStats 代币统计信息
 type TokenStats struct {
-	Address            string          `json:"address"`
-	Volume5m           decimal.Decimal `json:"volume_5m"`
-	VolumeChange       decimal.Decimal `json:"volume_change"`  // 5m交易量变化百分比
-	PriceChange        decimal.Decimal `json:"price_change"`   // 5m价格变化百分比
-	TxCount5m          int             `json:"tx_count_5m"`    // 5m交易次数
-	UniqueHolders      int             `json:"unique_holders"` // 5m独立持有者数量
-	LastUpdate         time.Time       `json:"last_update"`
-	StartPrice         decimal.Decimal `json:"start_price"`          // 5分钟窗口开始价格
-	CurrentPrice       decimal.Decimal `json:"current_price"`        // 当前价格
-	PriceChangePercent decimal.Decimal `json:"price_change_percent"` // 5分钟内价格变化百分比
+	Address            string                 `json:"address"`
+	Volume5m           decimal.Decimal        `json:"volume_5m"`
+	VolumeChange       decimal.Decimal        `json:"volume_change"`  // 5m交易量变化百分比
+	PriceChange        decimal.Decimal        `json:"price_change"`   // 5m价格变化百分比
+	TxCount5m          int                    `json:"tx_count_5m"`    // 5m交易次数
+	UniqueHolders      int                    `json:"unique_holders"` // 5m独立持有者数量
+	LastUpdate         time.Time              `json:"last_update"`
+	StartPrice         decimal.Decimal        `json:"start_price"`          // 5分钟窗口开始价格
+	CurrentPrice       decimal.Decimal        `json:"current_price"`        // 当前价格
+	PriceChangePercent decimal.Decimal        `json:"price_change_percent"` // 5分钟内价格变化百分比
+	Data               map[string]interface{} `json:"data,omitempty"`       // 额外的统计数据（如大额交易统计）
 }
 
 // MarketEvent 市场事件

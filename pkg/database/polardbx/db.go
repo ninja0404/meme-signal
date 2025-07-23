@@ -94,6 +94,6 @@ func validateConfig(src *MysqlConfig) *MysqlConfig {
 }
 
 func getDsn(cnf *MysqlConfig) string {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local&timeout=%s", cnf.User, cnf.Password, cnf.Host, cnf.Port, cnf.Database, cnf.Timeout)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=UTC&timeout=%s", cnf.User, cnf.Password, cnf.Host, cnf.Port, cnf.Database, cnf.Timeout)
 	return dsn
 }
