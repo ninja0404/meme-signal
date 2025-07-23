@@ -53,8 +53,11 @@ func (d *ConfigurableDetector) Detect(stats *model.TokenStats, tx *model.Transac
 				"condition_desc":  d.Condition.GetDescription(),
 				"trigger_time":    time.Now().Format("2006-01-02 15:04:05"),
 				"trigger_tx_sig":  tx.Signature,
-				"current_price":   stats.CurrentPrice.String(),
-				"price_change_5m": stats.PriceChangePercent.String(),
+				"current_price":   stats.CurrentPrice.Truncate(8).String(),
+				"price_change_5m": stats.PriceChangePercent.Truncate(2).String(),
+				"unique_wallets":  stats.UniqueHolders,
+				"tx_count_5m":     stats.TxCount5m,
+				"volume_5m":       stats.Volume5m.Truncate(2).String(),
 			},
 			Timestamp: time.Now(),
 			SourceTx:  tx,
@@ -240,9 +243,9 @@ func (r *DetectorRegistry) CreateMemeSignalDetector() Detector {
 	bigTransactionCondition := r.factory.CreateBigTransactionCondition(
 		"big_tx_30s_analysis",
 		"30秒内大额交易(>1000U): 用户数≥5个, 买卖比≥2:1",
-		1000.0, // 大额交易阈值：1000 USD
-		5,      // 最少用户数：5个
-		2.0,    // 买卖比例：买单数量 ≥ 卖单数量 * 2
+		300.0, // 大额交易阈值：1000 USD
+		5,     // 最少用户数：5个
+		1.5,   // 买卖比例：买单数量 ≥ 卖单数量 * 2
 	)
 
 	// 组合条件：所有条件都必须满足 (AND)

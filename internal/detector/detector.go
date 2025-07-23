@@ -103,19 +103,8 @@ func (w *Worker) processTransaction(tx *model.Transaction) {
 	window.AddTransaction(tx)
 
 	// 获取统计数据并运行检测器
-	stats := window.GetStats()
+	//stats := window.GetStats()
 	w.runDetectors(window, tx)
-
-	// 定期输出统计信息（每100笔交易输出一次）
-	if stats.TxCount5m%100 == 0 && stats.TxCount5m > 0 {
-		logger.Info("📊 代币统计更新",
-			logger.Int("worker_id", w.ID),
-			logger.String("token", tokenAddr),
-			logger.Int("tx_count_5m", stats.TxCount5m),
-			logger.Int("unique_wallets", stats.UniqueHolders),
-			logger.String("price_change", stats.PriceChangePercent.String()+"%"),
-			logger.String("volume_5m", stats.Volume5m.StringFixed(2)+"U"))
-	}
 }
 
 // runDetectors 运行所有检测器
