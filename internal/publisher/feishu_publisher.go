@@ -33,6 +33,9 @@ func (p *FeishuPublisher) GetType() string {
 func (p *FeishuPublisher) Publish(signal *model.Signal) error {
 	// 格式化消息内容
 	message := p.formatSignalMessage(signal)
+	if message == "" {
+		return nil
+	}
 
 	// 发送到飞书
 	return notifier.SendToLark(message, p.webhookURL)
@@ -97,6 +100,9 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	holderCount := "N/A"
 	if p.tokenHolderRepo != nil {
 		if count, err := p.tokenHolderRepo.GetHolderCount(tokenAddr); err == nil {
+			if count < 250 {
+				return ""
+			}
 			holderCount = fmt.Sprintf("%d个", count)
 		}
 	}
