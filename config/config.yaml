@@ -5,6 +5,18 @@ logger:
   add_caller: true
   caller_skip: 1
 
+polarx:
+  host: "pc-2ev75w4bn1748568x.rwlb.rds.aliyuncs.com"
+  port: 3306
+  user: "dev_root"
+  password: "fbCyEZD!iB9c7JY"
+  database: "solana_data"
+  timeout: "10s"
+  max_pool_size: 100
+  max_idle_size: 30
+  open_debug: false
+  log_level: "silent"
+
 kafka:
   brokers:
     - alikafka-pre-public-intl-sg-nnu47okt601-1-vpc.alikafka.aliyuncs.com:9094
