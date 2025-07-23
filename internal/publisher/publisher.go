@@ -54,7 +54,7 @@ func (m *Manager) registerDefaultPublishers() {
 	m.AddPublisher(&LogPublisher{})
 
 	// 注册飞书发布器
-	feishuWebhookURL := "https://open.larksuite.com/open-apis/bot/v2/hook/044b0167-96a8-4979-93ed-166b18496ca4"
+	feishuWebhookURL := "https://open.larksuite.com/open-apis/bot/v2/hook/abacd303-7553-411b-b4db-fce9c2ef819c"
 	m.AddPublisher(NewFeishuPublisher(feishuWebhookURL, m.tokenInfoRepo, m.tokenHolderRepo))
 
 	// 可以添加更多发布器：Telegram、Discord、WebHook等
