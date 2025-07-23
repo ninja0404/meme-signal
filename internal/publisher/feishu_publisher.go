@@ -7,6 +7,7 @@ import (
 	"github.com/ninja0404/meme-signal/internal/model"
 	"github.com/ninja0404/meme-signal/internal/notifier"
 	"github.com/ninja0404/meme-signal/internal/repo"
+	"github.com/shopspring/decimal"
 )
 
 // FeishuPublisher 飞书发布器
@@ -91,18 +92,6 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	// 查询代币市值计算所需数据
 	tokenSymbol := "UNKNOWN"
 	marketCap := "N/A"
-	if p.tokenInfoRepo != nil {
-		if symbol, price, supply, err := p.tokenInfoRepo.GetTokenMarketData(tokenAddr); err == nil {
-			if symbol != "" {
-				tokenSymbol = symbol
-			}
-			// 计算市值 = 当前价格 * 总供应量
-			if !price.IsZero() && !supply.IsZero() {
-				marketCapValue, _ := price.Mul(supply).Float64()
-				marketCap = p.formatMarketCap(marketCapValue)
-			}
-		}
-	}
 
 	// 查询持仓人数
 	holderCount := "N/A"
@@ -116,6 +105,21 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	if signal.Data != nil {
 		if price, ok := signal.Data["current_price"].(string); ok {
 			currentPrice = "$" + price
+
+			priceD := decimal.RequireFromString(price)
+
+			if p.tokenInfoRepo != nil {
+				if symbol, _, supply, err := p.tokenInfoRepo.GetTokenMarketData(tokenAddr); err == nil {
+					if symbol != "" {
+						tokenSymbol = symbol
+					}
+					// 计算市值 = 当前价格 * 总供应量
+					if !priceD.IsZero() && !supply.IsZero() {
+						marketCapValue, _ := priceD.Mul(supply).Float64()
+						marketCap = p.formatMarketCap(marketCapValue)
+					}
+				}
+			}
 		}
 		if change, ok := signal.Data["price_change_5m"].(string); ok {
 			priceChange5m = change + "%"
