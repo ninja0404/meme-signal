@@ -61,6 +61,23 @@ func (p *FeishuPublisher) formatVolume(volumeStr string) string {
 	}
 }
 
+// formatMarketCap 格式化市值，支持k/M/B单位
+func (p *FeishuPublisher) formatMarketCap(marketCap float64) string {
+	if marketCap >= 1000000000 {
+		// 大于等于10亿，显示为B格式
+		return fmt.Sprintf("$%.1fB", marketCap/1000000000)
+	} else if marketCap >= 1000000 {
+		// 大于等于100万，显示为M格式
+		return fmt.Sprintf("$%.1fM", marketCap/1000000)
+	} else if marketCap >= 1000 {
+		// 大于等于1000，显示为k格式
+		return fmt.Sprintf("$%.1fk", marketCap/1000)
+	} else {
+		// 小于1000，保持原格式
+		return fmt.Sprintf("$%.2f", marketCap)
+	}
+}
+
 // formatSignalMessage 格式化信号消息
 func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	// 从signal.Data中获取信息
@@ -71,11 +88,19 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	txCount5m := "N/A"
 	volume5m := "N/A"
 
-	// 查询代币symbol
+	// 查询代币市值计算所需数据
 	tokenSymbol := "UNKNOWN"
+	marketCap := "N/A"
 	if p.tokenInfoRepo != nil {
-		if symbol, err := p.tokenInfoRepo.GetTokenSymbol(tokenAddr); err == nil && symbol != "" {
-			tokenSymbol = symbol
+		if symbol, price, supply, err := p.tokenInfoRepo.GetTokenMarketData(tokenAddr); err == nil {
+			if symbol != "" {
+				tokenSymbol = symbol
+			}
+			// 计算市值 = 当前价格 * 总供应量
+			if !price.IsZero() && !supply.IsZero() {
+				marketCapValue, _ := price.Mul(supply).Float64()
+				marketCap = p.formatMarketCap(marketCapValue)
+			}
 		}
 	}
 
@@ -111,6 +136,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 🪙 代币符号: %s
 📍 代币地址: %s
 💰 当前价格: %s
+💎 当前市值: %s
 📈 5分钟涨幅: %s
 👥 独立地址数: %s
 🏦 持仓人数: %s
@@ -121,6 +147,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		tokenSymbol,
 		tokenAddr,
 		currentPrice,
+		marketCap,
 		priceChange5m,
 		uniqueWallets,
 		holderCount,
