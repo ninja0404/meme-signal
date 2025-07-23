@@ -233,18 +233,18 @@ func (r *DetectorRegistry) CreateMemeSignalDetector() Detector {
 	// 新增条件：独立钱包数量超过50个
 	uniqueWallets := r.factory.CreateUniqueWalletsCondition(
 		"unique_wallets_5m_50plus",
-		"5分钟内独立钱包数量>50个",
+		"5分钟内独立钱包数量>100个",
 		"5m",
 		">",
-		50,
+		100,
 	)
 
 	// 新增条件：大额交易条件
 	bigTransactionCondition := r.factory.CreateBigTransactionCondition(
 		"big_tx_30s_analysis",
 		"30秒内大额交易(>1000U): 用户数≥5个, 买卖比≥2:1",
-		300.0, // 大额交易阈值：1000 USD
-		5,     // 最少用户数：5个
+		600.0, // 大额交易阈值：1000 USD
+		8,     // 最少用户数：8个
 		1.5,   // 买卖比例：买单数量 ≥ 卖单数量 * 2
 	)
 
