@@ -17,10 +17,12 @@ import (
 
 // Application meme交易信号监听应用
 type Application struct {
-	configManager *config.Manager
-	pipeline      *pipeline.Pipeline
-	db            *gorm.DB
-	swapTxRepo    repo.SwapTxRepo
+	configManager   *config.Manager
+	pipeline        *pipeline.Pipeline
+	db              *gorm.DB
+	swapTxRepo      repo.SwapTxRepo
+	tokenInfoRepo   repo.TokenInfoRepo
+	tokenHolderRepo repo.TokenHolderRepo
 }
 
 // New 创建新的meme信号应用实例
@@ -73,6 +75,12 @@ func (app *Application) initDatabase() error {
 	// 创建SwapTx仓储
 	app.swapTxRepo = repo.NewSwapTxRepo(db)
 
+	// 创建TokenInfo仓储
+	app.tokenInfoRepo = repo.NewTokenInfoRepo(db)
+
+	// 创建TokenHolder仓储
+	app.tokenHolderRepo = repo.NewTokenHolderRepo(db)
+
 	logger.Info("📊 数据库连接已建立")
 	return nil
 }
@@ -89,6 +97,9 @@ func (app *Application) setupDataSources() {
 	// 创建数据库数据源
 	dbSource := database.NewSource(sourceConfig, app.swapTxRepo)
 	app.pipeline.GetSourceManager().AddSource(dbSource)
+
+	// 配置发布管理器的Repository
+	app.pipeline.GetPublisherManager().SetRepositories(app.tokenInfoRepo, app.tokenHolderRepo)
 
 	logger.Info("🗄️ 已配置数据库数据源",
 		logger.String("query_interval", sourceConfig.QueryInterval.String()),
@@ -208,4 +219,14 @@ func (app *Application) GetDatabase() *gorm.DB {
 // GetSwapTxRepo 获取SwapTx仓储
 func (app *Application) GetSwapTxRepo() repo.SwapTxRepo {
 	return app.swapTxRepo
+}
+
+// GetTokenInfoRepo 获取TokenInfo仓储
+func (app *Application) GetTokenInfoRepo() repo.TokenInfoRepo {
+	return app.tokenInfoRepo
+}
+
+// GetTokenHolderRepo 获取TokenHolder仓储
+func (app *Application) GetTokenHolderRepo() repo.TokenHolderRepo {
+	return app.tokenHolderRepo
 }

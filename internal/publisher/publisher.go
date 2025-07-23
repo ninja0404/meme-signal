@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/ninja0404/meme-signal/internal/model"
+	"github.com/ninja0404/meme-signal/internal/repo"
 	"github.com/ninja0404/meme-signal/pkg/logger"
 )
 
@@ -22,9 +23,11 @@ type Publisher interface {
 
 // Manager 信号发布管理器
 type Manager struct {
-	publishers []Publisher
-	ctx        context.Context
-	cancel     context.CancelFunc
+	publishers      []Publisher
+	ctx             context.Context
+	cancel          context.CancelFunc
+	tokenInfoRepo   repo.TokenInfoRepo
+	tokenHolderRepo repo.TokenHolderRepo
 }
 
 // NewManager 创建发布管理器
@@ -39,14 +42,20 @@ func NewManager() *Manager {
 	return manager
 }
 
+// SetRepositories 设置Repository
+func (m *Manager) SetRepositories(tokenInfoRepo repo.TokenInfoRepo, tokenHolderRepo repo.TokenHolderRepo) {
+	m.tokenInfoRepo = tokenInfoRepo
+	m.tokenHolderRepo = tokenHolderRepo
+}
+
 // registerDefaultPublishers 注册默认发布器
 func (m *Manager) registerDefaultPublishers() {
 	// 注册日志发布器
 	m.AddPublisher(&LogPublisher{})
 
 	// 注册飞书发布器
-	feishuWebhookURL := "https://open.larksuite.com/open-apis/bot/v2/hook/abacd303-7553-411b-b4db-fce9c2ef819c"
-	m.AddPublisher(NewFeishuPublisher(feishuWebhookURL))
+	feishuWebhookURL := "https://open.larksuite.com/open-apis/bot/v2/hook/044b0167-96a8-4979-93ed-166b18496ca4"
+	m.AddPublisher(NewFeishuPublisher(feishuWebhookURL, m.tokenInfoRepo, m.tokenHolderRepo))
 
 	// 可以添加更多发布器：Telegram、Discord、WebHook等
 	// m.AddPublisher(&TelegramPublisher{token: "your-bot-token"})

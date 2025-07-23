@@ -2,20 +2,26 @@ package publisher
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/ninja0404/meme-signal/internal/model"
 	"github.com/ninja0404/meme-signal/internal/notifier"
-	"strconv"
+	"github.com/ninja0404/meme-signal/internal/repo"
 )
 
 // FeishuPublisher 飞书发布器
 type FeishuPublisher struct {
-	webhookURL string
+	webhookURL      string
+	tokenInfoRepo   repo.TokenInfoRepo
+	tokenHolderRepo repo.TokenHolderRepo
 }
 
 // NewFeishuPublisher 创建飞书发布器
-func NewFeishuPublisher(webhookURL string) *FeishuPublisher {
+func NewFeishuPublisher(webhookURL string, tokenInfoRepo repo.TokenInfoRepo, tokenHolderRepo repo.TokenHolderRepo) *FeishuPublisher {
 	return &FeishuPublisher{
-		webhookURL: webhookURL,
+		webhookURL:      webhookURL,
+		tokenInfoRepo:   tokenInfoRepo,
+		tokenHolderRepo: tokenHolderRepo,
 	}
 }
 
@@ -65,6 +71,22 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	txCount5m := "N/A"
 	volume5m := "N/A"
 
+	// 查询代币symbol
+	tokenSymbol := "UNKNOWN"
+	if p.tokenInfoRepo != nil {
+		if symbol, err := p.tokenInfoRepo.GetTokenSymbol(tokenAddr); err == nil && symbol != "" {
+			tokenSymbol = symbol
+		}
+	}
+
+	// 查询持仓人数
+	holderCount := "N/A"
+	if p.tokenHolderRepo != nil {
+		if count, err := p.tokenHolderRepo.GetHolderCount(tokenAddr); err == nil {
+			holderCount = fmt.Sprintf("%d个", count)
+		}
+	}
+
 	// 从Data字段获取详细信息
 	if signal.Data != nil {
 		if price, ok := signal.Data["current_price"].(string); ok {
@@ -86,26 +108,25 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 
 	message := fmt.Sprintf(`🚨 Meme交易信号检测
 
+🪙 代币符号: %s
 📍 代币地址: %s
 💰 当前价格: %s
 📈 5分钟涨幅: %s
 👥 独立地址数: %s
+🏦 持仓人数: %s
 📊 5分钟交易数: %s
 💵 5分钟交易量: %s
-🔥 置信度: %.1f%%
-⚡ 触发时间: %s
 
-💡 %s`,
+⏰ 触发时间: %s`,
+		tokenSymbol,
 		tokenAddr,
 		currentPrice,
 		priceChange5m,
 		uniqueWallets,
+		holderCount,
 		txCount5m,
 		volume5m,
-		signal.Confidence*100, // 转换为百分比
-		signal.Timestamp.Format("2006-01-02 15:04:05"),
-		signal.Message,
-	)
+		signal.Timestamp.Format("2006-01-02 15:04:05"))
 
 	return message
 }
