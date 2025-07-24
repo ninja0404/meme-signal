@@ -45,6 +45,46 @@ func (p *FeishuPublisher) Close() error {
 	return nil
 }
 
+// getSignalTypeName 获取信号类型的中文名称
+func (p *FeishuPublisher) getSignalTypeName(signalType model.SignalType) string {
+	switch signalType {
+	case model.SignalTypePriceSpike:
+		return "价格异动信号"
+	case model.SignalTypeVolumeSpike:
+		return "交易量突增信号"
+	case model.SignalTypeLargeTransaction:
+		return "大额交易信号"
+	case model.SignalTypeNewToken:
+		return "新代币上线信号"
+	case model.SignalTypeWhaleActivity:
+		return "巨鲸活动信号"
+	case model.SignalTypeCompositeSignal:
+		return "复合条件信号"
+	default:
+		return "未知信号类型"
+	}
+}
+
+// getSignalTypeEmoji 获取信号类型对应的emoji
+func (p *FeishuPublisher) getSignalTypeEmoji(signalType model.SignalType) string {
+	switch signalType {
+	case model.SignalTypePriceSpike:
+		return "📈"
+	case model.SignalTypeVolumeSpike:
+		return "📊"
+	case model.SignalTypeLargeTransaction:
+		return "💰"
+	case model.SignalTypeNewToken:
+		return "🆕"
+	case model.SignalTypeWhaleActivity:
+		return "🐋"
+	case model.SignalTypeCompositeSignal:
+		return "🎯"
+	default:
+		return "❓"
+	}
+}
+
 // formatVolume 格式化交易量，大于1000时显示为k格式
 func (p *FeishuPublisher) formatVolume(volumeStr string) string {
 	// 解析数值
@@ -153,6 +193,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 
 	message := fmt.Sprintf(`🚨 Meme交易信号检测
 
+%s 信号类型: %s
 🪙 代币符号: %s
 📍 代币地址: %s
 💰 当前价格: %s
@@ -167,6 +208,8 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 
 🔗 GMGN链接: https://gmgn.ai/sol/token/%s
 ⏰ 触发时间: %s`,
+		p.getSignalTypeEmoji(signal.Type),
+		p.getSignalTypeName(signal.Type),
 		tokenSymbol,
 		tokenAddr,
 		currentPrice,

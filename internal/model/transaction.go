@@ -39,6 +39,7 @@ const (
 	SignalTypeLargeTransaction SignalType = "large_transaction" // 大额交易
 	SignalTypeNewToken         SignalType = "new_token"         // 新代币上线
 	SignalTypeWhaleActivity    SignalType = "whale_activity"    // 巨鲸活动
+	SignalTypeCompositeSignal  SignalType = "composite_signal"  // 混合信号
 )
 
 // Signal 检测到的信号

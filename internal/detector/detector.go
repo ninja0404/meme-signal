@@ -142,20 +142,22 @@ func (w *Worker) cleanup() {
 
 // Engine 信号检测引擎
 type Engine struct {
-	workers    []*Worker
-	signalChan chan *model.Signal
-	ctx        context.Context
-	cancel     context.CancelFunc
+	workers          []*Worker
+	signalChan       chan *model.Signal
+	ctx              context.Context
+	cancel           context.CancelFunc
+	externalRegistry *DetectorRegistry // 外部检测器注册表
 }
 
 // NewEngine 创建信号检测引擎
 func NewEngine() *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 	engine := &Engine{
-		workers:    make([]*Worker, WorkerCount),
-		signalChan: make(chan *model.Signal, 1000),
-		ctx:        ctx,
-		cancel:     cancel,
+		workers:          make([]*Worker, WorkerCount),
+		signalChan:       make(chan *model.Signal, 1000),
+		ctx:              ctx,
+		cancel:           cancel,
+		externalRegistry: nil, // 初始化为nil，之后可以通过SetDetectorRegistry设置
 	}
 
 	// 创建工作协程
@@ -234,33 +236,55 @@ func (e *Engine) statsMonitor() {
 	}
 }
 
+// SetDetectorRegistry 设置外部检测器注册表
+func (e *Engine) SetDetectorRegistry(registry *DetectorRegistry) {
+	e.externalRegistry = registry
+}
+
 // createDefaultDetectors 创建默认检测器
 func (e *Engine) createDefaultDetectors() []Detector {
-	// 使用新的配置化检测器系统
-	registry := NewDetectorRegistry()
+	var detectors []Detector
 
-	// 注册默认的Meme信号检测器
-	registry.Register("meme_signal", func() Detector {
-		return registry.CreateMemeSignalDetector()
-	})
-
-	// 可以轻松添加更多检测器
-	// registry.Register("volume_spike", func() Detector {
-	//     return registry.CreateVolumeSpikeDetector()
-	// })
-
-	// 创建检测器实例
-	memeDetector, err := registry.Create("meme_signal")
-	if err != nil {
-		logger.Error("❌ 创建检测器失败", logger.String("error", err.Error()))
-		return []Detector{}
+	// 使用统一的检测器注册表
+	var registry *DetectorRegistry
+	if e.externalRegistry != nil {
+		// 使用外部注册表
+		registry = e.externalRegistry
+	} else {
+		// 创建默认注册表
+		registry = NewDetectorRegistry()
+		// 注册默认的Meme信号检测器
+		registry.Register("meme_signal", func() Detector {
+			return registry.CreateMemeSignalDetector()
+		})
 	}
 
-	logger.Info("🔧 已加载配置化检测器",
-		logger.String("detector", memeDetector.GetType()),
-		logger.Any("registered", registry.GetRegisteredDetectors()))
+	// 获取所有已注册的检测器名称
+	registeredDetectors := registry.GetRegisteredDetectors()
 
-	return []Detector{memeDetector}
+	// 创建所有注册的检测器实例
+	for _, detectorName := range registeredDetectors {
+		if detector, err := registry.Create(detectorName); err == nil {
+			detectors = append(detectors, detector)
+			logger.Info("✅ 检测器加载成功",
+				logger.String("name", detectorName),
+				logger.String("type", detector.GetType()))
+		} else {
+			logger.Error("❌ 创建检测器失败",
+				logger.String("name", detectorName),
+				logger.String("error", err.Error()))
+		}
+	}
+
+	if len(detectors) == 0 {
+		logger.Warn("⚠️ 没有加载任何检测器")
+	} else {
+		logger.Info("🔧 检测器加载完成",
+			logger.Int("total_detectors", len(detectors)),
+			logger.Any("detector_names", registeredDetectors))
+	}
+
+	return detectors
 }
 
 // AddDetectors 添加外部检测器到所有worker

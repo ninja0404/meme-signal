@@ -263,7 +263,7 @@ func (r *DetectorRegistry) CreateMemeSignalDetector() Detector {
 		Name("meme_signal_detector").
 		Description("Meme代币信号检测器").
 		Type("meme_signal").
-		SignalType(model.SignalTypeLargeTransaction).
+		SignalType(model.SignalTypeCompositeSignal).
 		Severity(8).
 		Confidence(0.95).
 		WithCondition(combinedCondition).

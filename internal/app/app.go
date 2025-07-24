@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/ninja0404/meme-signal/internal/config"
+	"github.com/ninja0404/meme-signal/internal/detector"
+	"github.com/ninja0404/meme-signal/internal/detector/condition"
+	"github.com/ninja0404/meme-signal/internal/model"
 	"github.com/ninja0404/meme-signal/internal/pipeline"
 	"github.com/ninja0404/meme-signal/internal/repo"
 	"github.com/ninja0404/meme-signal/internal/source/database"
@@ -111,9 +114,55 @@ func (app *Application) setupDataSources() {
 		logger.Int("batch_size", sourceConfig.BatchSize))
 }
 
+// setupDetectors 设置检测器
+func (app *Application) setupDetectors() *detector.DetectorRegistry {
+	detectorRegistry := detector.NewDetectorRegistry()
+
+	// 注册混合Meme信号检测器
+	detectorRegistry.Register("meme_signal", func() detector.Detector {
+		return detectorRegistry.CreateMemeSignalDetector()
+	})
+
+	// 注册巨鲸活动检测器 - 使用ConditionFactory保持架构一致性
+	detectorRegistry.Register("whale_activity", func() detector.Detector {
+		// 创建条件工厂
+		factory := condition.NewConditionFactory()
+
+		// 使用工厂方法创建巨鲸交易条件
+		whaleCondition := factory.CreateWhaleTransactionCondition(
+			"巨鲸交易检测",
+			"检测单笔交易金额大于1万USD的巨鲸活动",
+			10000.0, // 1万USD阈值
+		)
+
+		return detector.NewDetectorBuilder().
+			Name("巨鲸活动检测器").
+			Description("检测单笔大额交易（>1万USD）").
+			Type("whale_activity").
+			SignalType(model.SignalTypeWhaleActivity).
+			Severity(7).
+			Confidence(0.9).
+			WithCondition(whaleCondition).
+			Build()
+	})
+
+	logger.Info("🔧 检测器注册完成",
+		logger.String("meme_signal", "复合Meme信号检测器"),
+		logger.String("whale_activity", "巨鲸活动检测器"))
+
+	return detectorRegistry
+}
+
 // Run 运行应用
 func (app *Application) Run() error {
 	logger.Info("🎯 启动Meme交易信号检测管道")
+
+	// 设置检测器注册表
+	detectorRegistry := app.setupDetectors()
+
+	// 将检测器注册表传递给引擎，实现统一管理
+	detectorEngine := app.pipeline.GetDetectorEngine()
+	detectorEngine.SetDetectorRegistry(detectorRegistry)
 
 	// 启动数据处理管道
 	if err := app.pipeline.Start(); err != nil {
@@ -123,6 +172,7 @@ func (app *Application) Run() error {
 	logger.Info("🔥 Meme交易信号监听服务已启动，开始监控DEX交易...")
 	logger.Info("📊 复合信号检测: 5分钟内涨幅≥20% + 最后30秒涨幅≥15% + 5分钟内交易次数>300笔 + 独立钱包数>50个 + 大额交易条件")
 	logger.Info("💰 大额交易条件: 30秒内>1000U交易的用户数≥5个 + 大额买卖比≥2:1")
+	logger.Info("🐋 巨鲸检测: 单笔交易金额>10,000USD的大额交易监控")
 	logger.Info("⚡ 分片处理架构: 16个Worker协程 | 5分钟时间窗口 | 基于Token地址Hash分片")
 	logger.Info("🗄️ 数据源: 数据库轮询 | 每秒查询 | 增量处理")
 	logger.Info("🔄 信号去重: 1小时冷却期 | 防止重复发送 | 每个代币每种信号类型限制")

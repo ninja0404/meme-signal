@@ -115,6 +115,7 @@ func (f *ConditionFactory) CreateUniqueWalletsCondition(name, desc, timeWindow, 
 	}
 }
 
+// CreateBigTransactionCondition 创建大额交易条件
 func (f *ConditionFactory) CreateBigTransactionCondition(name, desc string, amountThreshold float64, minUsers int, buyToSellRatioMin float64) Condition {
 	return &BigTransactionCondition{
 		Name:              name,
@@ -123,4 +124,9 @@ func (f *ConditionFactory) CreateBigTransactionCondition(name, desc string, amou
 		MinUsers:          minUsers,
 		BuyToSellRatioMin: buyToSellRatioMin,
 	}
+}
+
+// CreateWhaleTransactionCondition 创建巨鲸交易条件
+func (f *ConditionFactory) CreateWhaleTransactionCondition(name, desc string, thresholdUSD float64) Condition {
+	return NewWhaleTransactionCondition(name, desc, decimal.NewFromFloat(thresholdUSD))
 }

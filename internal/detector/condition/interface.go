@@ -148,3 +148,10 @@ func (b *Builder) Build() Condition {
 		Conditions:  b.conditions,
 	}
 }
+
+// WhaleTransaction 创建巨鲸交易条件的便捷方法
+func (b *Builder) WhaleTransaction(name, description string, thresholdUSD decimal.Decimal) *Builder {
+	condition := NewWhaleTransactionCondition(name, description, thresholdUSD)
+	b.conditions = append(b.conditions, condition)
+	return b
+}
