@@ -128,16 +128,19 @@ func (app *Application) setupDetectors() *detector.DetectorRegistry {
 		// 创建条件工厂
 		factory := condition.NewConditionFactory()
 
-		// 使用工厂方法创建巨鲸交易条件
+		// 使用工厂方法创建突然性巨鲸活动条件
 		whaleCondition := factory.CreateWhaleTransactionCondition(
-			"巨鲸交易检测",
-			"检测单笔交易金额大于1万USD的巨鲸活动",
-			10000.0, // 1万USD阈值
+			"突然性巨鲸活动检测",
+			"检测平静期突然出现的大额交易",
+			40000.0, // 平静期最大交易量: $40,000
+			5000.0,  // 平静期最大单笔: $5,000
+			10000.0, // 突破交易阈值: $10,000
+			80,      // 平静期最大交易数: 80笔
 		)
 
 		return detector.NewDetectorBuilder().
-			Name("巨鲸活动检测器").
-			Description("检测单笔大额交易（>1万USD）").
+			Name("突然性巨鲸活动检测器").
+			Description("检测平静期突然出现的大额交易（平静期<$40k，突然>$10k）").
 			Type("whale_activity").
 			SignalType(model.SignalTypeWhaleActivity).
 			Severity(7).

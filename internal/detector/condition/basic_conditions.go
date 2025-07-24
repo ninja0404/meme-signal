@@ -126,7 +126,7 @@ func (f *ConditionFactory) CreateBigTransactionCondition(name, desc string, amou
 	}
 }
 
-// CreateWhaleTransactionCondition 创建巨鲸交易条件
-func (f *ConditionFactory) CreateWhaleTransactionCondition(name, desc string, thresholdUSD float64) Condition {
-	return NewWhaleTransactionCondition(name, desc, decimal.NewFromFloat(thresholdUSD))
+// CreateWhaleTransactionCondition 创建突然性巨鲸活动条件
+func (f *ConditionFactory) CreateWhaleTransactionCondition(name, desc string, quietVolumeMax, quietMaxSingle, suddenThreshold float64, quietMaxTxCount int) Condition {
+	return NewWhaleTransactionCondition(name, desc, quietVolumeMax, quietMaxSingle, suddenThreshold, quietMaxTxCount)
 }

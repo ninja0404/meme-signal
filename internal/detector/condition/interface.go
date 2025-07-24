@@ -36,6 +36,7 @@ type TokenWindowReader interface {
 	GetTransactionCount() int
 	GetLastUpdate() time.Time
 	GetLast30SecondBigTransactionStats(threshold decimal.Decimal) map[string]interface{} // 新增大额交易统计方法
+	GetMaxSingleTransactionAmount() decimal.Decimal                                      // 获取5分钟内最大单笔交易金额
 }
 
 // LogicalOperator 逻辑操作符
@@ -150,8 +151,8 @@ func (b *Builder) Build() Condition {
 }
 
 // WhaleTransaction 创建巨鲸交易条件的便捷方法
-func (b *Builder) WhaleTransaction(name, description string, thresholdUSD decimal.Decimal) *Builder {
-	condition := NewWhaleTransactionCondition(name, description, thresholdUSD)
+func (b *Builder) WhaleTransaction(name, description string, quietVolumeMax, quietMaxSingle, suddenThreshold float64, quietMaxTxCount int) *Builder {
+	condition := NewWhaleTransactionCondition(name, description, quietVolumeMax, quietMaxSingle, suddenThreshold, quietMaxTxCount)
 	b.conditions = append(b.conditions, condition)
 	return b
 }

@@ -188,7 +188,7 @@ func (m *Manager) recordSkippedSignal(signal *model.Signal, reason string) {
 func (m *Manager) PublishSignal(signal *model.Signal) {
 	// 检查是否在跳过信号冷却期内
 	if !m.shouldCheckSignal(signal) {
-		logger.Debug("⏭️ 信号在跳过冷却期内，不再检测",
+		logger.Info("⏭️ 信号在跳过冷却期内，不再检测",
 			logger.String("type", string(signal.Type)),
 			logger.String("token", signal.TokenAddress),
 			logger.String("cooldown", m.skippedSignalCooldown.String()))
@@ -208,8 +208,8 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 	if m.swapTxRepo != nil {
 		if ratio, err := m.swapTxRepo.GetTokenBundleRatio(signal.TokenAddress); err == nil {
 			bundleRatio = ratio
-			// 如果捆绑交易占比超过20%，跳过发送并记录
-			if bundleRatio > 0.2 {
+			// 如果捆绑交易占比超过30%，跳过发送并记录
+			if bundleRatio > 0.3 {
 				logger.Info("🚫 捆绑交易占比过高，跳过发送信号",
 					logger.String("token", signal.TokenAddress),
 					logger.Float64("bundle_ratio", bundleRatio*100),

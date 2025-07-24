@@ -154,28 +154,41 @@ func (tw *TokenWindow) GetStats() *model.TokenStats {
 	tw.mutex.RLock()
 	defer tw.mutex.RUnlock()
 
-	stats := &model.TokenStats{
-		Address:    tw.TokenAddress,
-		LastUpdate: tw.lastUpdate,
-	}
-
-	txCount := len(tw.transactions)
-	if txCount == 0 {
-		return stats
-	}
-
-	stats.TxCount5m = txCount
-	stats.Volume5m = tw.totalVolume
-	stats.UniqueHolders = len(tw.walletCnt)
-	stats.StartPrice = tw.firstPrice
-	stats.CurrentPrice = tw.lastPrice
-	if !stats.StartPrice.IsZero() {
-		stats.PriceChangePercent = stats.CurrentPrice.
-			Sub(stats.StartPrice).
-			Div(stats.StartPrice).
+	// 计算价格变化百分比
+	var priceChangePercent decimal.Decimal
+	if !tw.firstPrice.IsZero() {
+		priceChangePercent = tw.lastPrice.Sub(tw.firstPrice).
+			Div(tw.firstPrice).
 			Mul(decimal.NewFromInt(100))
 	}
-	return stats
+
+	return &model.TokenStats{
+		Address:            tw.TokenAddress,
+		TxCount5m:          len(tw.transactions),
+		UniqueHolders:      len(tw.walletCnt),
+		Volume5m:           tw.totalVolume,
+		PriceChangePercent: priceChangePercent,
+		CurrentPrice:       tw.lastPrice,
+		StartPrice:         tw.firstPrice,      // 恢复: 5分钟窗口开始价格
+		LastUpdate:         tw.lastUpdate,      // 恢复: 最后更新时间
+		VolumeChange:       decimal.Zero,       // 恢复: 交易量变化百分比（暂时设为0）
+		PriceChange:        priceChangePercent, // 恢复: 价格变化百分比
+		Data:               nil,                // 恢复: 额外统计数据
+	}
+}
+
+// GetMaxSingleTransactionAmount 获取5分钟内最大单笔交易金额
+func (tw *TokenWindow) GetMaxSingleTransactionAmount() decimal.Decimal {
+	tw.mutex.RLock()
+	defer tw.mutex.RUnlock()
+
+	maxAmount := decimal.Zero
+	for _, tx := range tw.transactions {
+		if tx.AmountUSD.GreaterThan(maxAmount) {
+			maxAmount = tx.AmountUSD
+		}
+	}
+	return maxAmount
 }
 
 // GetTransactionCount 返回当前窗口内交易条数

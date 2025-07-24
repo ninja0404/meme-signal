@@ -113,6 +113,11 @@ func (a *TokenWindowAdapter) GetLast30SecondBigTransactionStats(threshold decima
 	return a.window.GetLast30SecondBigTransactionStats(threshold)
 }
 
+// GetMaxSingleTransactionAmount 获取5分钟内最大单笔交易金额
+func (a *TokenWindowAdapter) GetMaxSingleTransactionAmount() decimal.Decimal {
+	return a.window.GetMaxSingleTransactionAmount()
+}
+
 // DetectorBuilder 检测器建造者
 type DetectorBuilder struct {
 	name         string
