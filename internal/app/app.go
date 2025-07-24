@@ -103,7 +103,7 @@ func (app *Application) setupDataSources() {
 	app.pipeline.SetPublisherConfig(publisherConfig)
 
 	// 配置发布管理器的Repository
-	app.pipeline.GetPublisherManager().SetRepositories(app.tokenInfoRepo, app.tokenHolderRepo)
+	app.pipeline.GetPublisherManager().SetRepositories(app.tokenInfoRepo, app.tokenHolderRepo, app.swapTxRepo)
 
 	logger.Info("🗄️ 已配置数据库数据源",
 		logger.String("query_interval", sourceConfig.QueryInterval.String()),

@@ -91,6 +91,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	uniqueWallets := "N/A"
 	txCount5m := "N/A"
 	volume5m := "N/A"
+	bundleRatio := "N/A"
 
 	// 查询代币市值计算所需数据
 	tokenSymbol := "UNKNOWN"
@@ -139,6 +140,10 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		if volume, ok := signal.Data["volume_5m"].(string); ok {
 			volume5m = p.formatVolume(volume)
 		}
+		// 获取捆绑交易占比
+		if ratio, ok := signal.Data["bundle_ratio"].(float64); ok {
+			bundleRatio = fmt.Sprintf("%.1f%%", ratio*100)
+		}
 	}
 
 	message := fmt.Sprintf(`🚨 Meme交易信号检测
@@ -152,6 +157,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 🏦 持仓人数: %s
 📊 5分钟交易数: %s
 💵 5分钟交易量: %s
+🔗 捆绑交易占比: %s
 
 ⏰ 触发时间: %s`,
 		tokenSymbol,
@@ -163,6 +169,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		holderCount,
 		txCount5m,
 		volume5m,
+		bundleRatio,
 		signal.Timestamp.Format("2006-01-02 15:04:05"))
 
 	return message

@@ -36,6 +36,7 @@ type Manager struct {
 	cancel          context.CancelFunc
 	tokenInfoRepo   repo.TokenInfoRepo
 	tokenHolderRepo repo.TokenHolderRepo
+	swapTxRepo      repo.SwapTxRepo
 	config          PublisherConfig
 
 	// 信号去重管理
@@ -60,9 +61,10 @@ func NewManager(config PublisherConfig) *Manager {
 }
 
 // SetRepositories 设置Repository
-func (m *Manager) SetRepositories(tokenInfoRepo repo.TokenInfoRepo, tokenHolderRepo repo.TokenHolderRepo) {
+func (m *Manager) SetRepositories(tokenInfoRepo repo.TokenInfoRepo, tokenHolderRepo repo.TokenHolderRepo, swapTxRepo repo.SwapTxRepo) {
 	m.tokenInfoRepo = tokenInfoRepo
 	m.tokenHolderRepo = tokenHolderRepo
+	m.swapTxRepo = swapTxRepo
 }
 
 // registerDefaultPublishers 注册默认发布器
@@ -143,6 +145,32 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 		return
 	}
 
+	// 检查捆绑交易占比
+	bundleRatio := 0.0
+	if m.swapTxRepo != nil {
+		if ratio, err := m.swapTxRepo.GetTokenBundleRatio(signal.TokenAddress); err == nil {
+			bundleRatio = ratio
+			// 如果捆绑交易占比超过20%，跳过发送
+			if bundleRatio > 0.2 {
+				logger.Info("🚫 捆绑交易占比过高，跳过发送信号",
+					logger.String("token", signal.TokenAddress),
+					logger.Float64("bundle_ratio", bundleRatio*100),
+					logger.String("type", string(signal.Type)))
+				return
+			}
+		} else {
+			logger.Warn("⚠️ 查询捆绑交易占比失败",
+				logger.String("token", signal.TokenAddress),
+				logger.FieldErr(err))
+		}
+	}
+
+	// 将捆绑交易占比添加到信号数据中，供发布器使用
+	if signal.Data == nil {
+		signal.Data = make(map[string]interface{})
+	}
+	signal.Data["bundle_ratio"] = bundleRatio
+
 	for _, publisher := range m.publishers {
 		if err := publisher.Publish(signal); err != nil {
 			logger.Error("发布信号失败",
@@ -153,7 +181,8 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 			logger.Info("✅ 信号发布成功",
 				logger.String("publisher", publisher.GetType()),
 				logger.String("signal_id", signal.ID),
-				logger.String("token", signal.TokenAddress))
+				logger.String("token", signal.TokenAddress),
+				logger.Float64("bundle_ratio", bundleRatio*100))
 
 			// 如果是飞书发布器且发送成功，记录已发送信号
 			m.recordSentSignal(signal)

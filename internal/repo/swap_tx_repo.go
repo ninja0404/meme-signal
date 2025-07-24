@@ -22,6 +22,9 @@ type SwapTxRepo interface {
 
 	// GetMinIdSince 获取指定时间之后的最小ID
 	GetMinIdSince(since time.Time) (uint64, error)
+
+	// GetTokenBundleRatio 获取指定代币的捆绑交易占比
+	GetTokenBundleRatio(tokenAddress string) (float64, error)
 }
 
 type swapTxRepoImpl struct {
@@ -99,4 +102,35 @@ func (r *swapTxRepoImpl) GetMinIdSince(since time.Time) (uint64, error) {
 		Scan(&minId).Error
 
 	return minId, err
+}
+
+// GetTokenBundleRatio 获取指定代币的捆绑交易占比
+func (r *swapTxRepoImpl) GetTokenBundleRatio(tokenAddress string) (float64, error) {
+	var totalCount int64
+	var bundledCount int64
+
+	// 查询该代币的总交易数量（买卖交易）
+	err := r.db.Model(&model.SwapTx{}).
+		Where("token_address = ? AND action IN (?, ?)", tokenAddress, 1, 2).
+		Count(&totalCount).Error
+	if err != nil {
+		return 0, err
+	}
+
+	// 如果没有交易，返回0
+	if totalCount == 0 {
+		return 0, nil
+	}
+
+	// 查询该代币的捆绑交易数量
+	err = r.db.Model(&model.SwapTx{}).
+		Where("token_address = ? AND action IN (?, ?) AND is_bundled = 1", tokenAddress, 1, 2).
+		Count(&bundledCount).Error
+	if err != nil {
+		return 0, err
+	}
+
+	// 计算占比
+	ratio := float64(bundledCount) / float64(totalCount)
+	return ratio, nil
 }
