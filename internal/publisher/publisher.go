@@ -165,11 +165,47 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 		}
 	}
 
-	// 将捆绑交易占比添加到信号数据中，供发布器使用
+	// 检查钓鱼钱包占比
+	phishingRatio := 0.0
+	if m.tokenHolderRepo != nil && m.swapTxRepo != nil {
+		// 获取持仓地址列表
+		if holders, err := m.tokenHolderRepo.GetTokenHolders(signal.TokenAddress); err == nil {
+			// 提取持仓地址
+			holderAddresses := make([]string, len(holders))
+			for i, holder := range holders {
+				holderAddresses[i] = holder.WalletAddress
+			}
+
+			// 查询钓鱼钱包占比
+			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, holderAddresses); err == nil {
+				phishingRatio = ratio
+				// 如果钓鱼钱包占比超过20%，跳过发送
+				if phishingRatio > 0.2 {
+					logger.Info("🚫 钓鱼钱包占比过高，跳过发送信号",
+						logger.String("token", signal.TokenAddress),
+						logger.Float64("phishing_ratio", phishingRatio*100),
+						logger.Int("total_holders", len(holderAddresses)),
+						logger.String("type", string(signal.Type)))
+					return
+				}
+			} else {
+				logger.Warn("⚠️ 查询钓鱼钱包占比失败",
+					logger.String("token", signal.TokenAddress),
+					logger.FieldErr(err))
+			}
+		} else {
+			logger.Warn("⚠️ 查询持仓地址失败",
+				logger.String("token", signal.TokenAddress),
+				logger.FieldErr(err))
+		}
+	}
+
+	// 将占比信息添加到信号数据中，供发布器使用
 	if signal.Data == nil {
 		signal.Data = make(map[string]interface{})
 	}
 	signal.Data["bundle_ratio"] = bundleRatio
+	signal.Data["phishing_ratio"] = phishingRatio
 
 	for _, publisher := range m.publishers {
 		if err := publisher.Publish(signal); err != nil {
@@ -182,7 +218,8 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 				logger.String("publisher", publisher.GetType()),
 				logger.String("signal_id", signal.ID),
 				logger.String("token", signal.TokenAddress),
-				logger.Float64("bundle_ratio", bundleRatio*100))
+				logger.Float64("bundle_ratio", bundleRatio*100),
+				logger.Float64("phishing_ratio", phishingRatio*100))
 
 			// 如果是飞书发布器且发送成功，记录已发送信号
 			m.recordSentSignal(signal)

@@ -92,6 +92,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	txCount5m := "N/A"
 	volume5m := "N/A"
 	bundleRatio := "N/A"
+	phishingRatio := "N/A"
 
 	// 查询代币市值计算所需数据
 	tokenSymbol := "UNKNOWN"
@@ -142,7 +143,11 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		}
 		// 获取捆绑交易占比
 		if ratio, ok := signal.Data["bundle_ratio"].(float64); ok {
-			bundleRatio = fmt.Sprintf("%.1f%%", ratio*100)
+			bundleRatio = fmt.Sprintf("%.2f%%", ratio*100)
+		}
+		// 获取钓鱼钱包占比
+		if ratio, ok := signal.Data["phishing_ratio"].(float64); ok {
+			phishingRatio = fmt.Sprintf("%.2f%%", ratio*100)
 		}
 	}
 
@@ -158,6 +163,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 📊 5分钟交易数: %s
 💵 5分钟交易量: %s
 🔗 捆绑交易占比: %s
+🎣 钓鱼钱包占比: %s
 
 🔗 GMGN链接: https://gmgn.ai/sol/token/%s
 ⏰ 触发时间: %s`,
@@ -171,6 +177,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		txCount5m,
 		volume5m,
 		bundleRatio,
+		phishingRatio,
 		tokenAddr,
 		signal.Timestamp.Format("2006-01-02 15:04:05"))
 
