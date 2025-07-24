@@ -42,19 +42,26 @@ type Manager struct {
 	// 信号去重管理
 	sentSignals    map[string]time.Time // key: tokenAddress_signalType, value: 发送时间
 	signalCooldown time.Duration        // 信号冷却时间，防止重复发送
-	mutex          sync.RWMutex         // 保护sentSignals的并发访问
+
+	// 跳过信号管理
+	skippedSignals        map[string]time.Time // key: tokenAddress_signalType, value: 跳过时间
+	skippedSignalCooldown time.Duration        // 跳过信号冷却时间，防止重复检测
+
+	mutex sync.RWMutex // 保护sentSignals和skippedSignals的并发访问
 }
 
 // NewManager 创建发布管理器
 func NewManager(config PublisherConfig) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	manager := &Manager{
-		publishers:     make([]Publisher, 0),
-		ctx:            ctx,
-		cancel:         cancel,
-		config:         config,
-		sentSignals:    make(map[string]time.Time),
-		signalCooldown: 1 * time.Hour, // 1小时内同一代币同一类型信号只发送一次
+		publishers:            make([]Publisher, 0),
+		ctx:                   ctx,
+		cancel:                cancel,
+		config:                config,
+		sentSignals:           make(map[string]time.Time),
+		signalCooldown:        1 * time.Hour, // 1小时内同一代币同一类型信号只发送一次
+		skippedSignals:        make(map[string]time.Time),
+		skippedSignalCooldown: 30 * time.Minute, // 30分钟内被跳过的信号不再检测
 	}
 
 	return manager
@@ -128,15 +135,66 @@ func (m *Manager) cleanupExpiredSignals() {
 	defer m.mutex.Unlock()
 
 	now := time.Now()
+
+	// 清理过期的已发送信号
 	for signalKey, sentTime := range m.sentSignals {
 		if now.Sub(sentTime) > m.signalCooldown {
 			delete(m.sentSignals, signalKey)
 		}
 	}
+
+	// 清理过期的跳过信号
+	for signalKey, skippedTime := range m.skippedSignals {
+		if now.Sub(skippedTime) > m.skippedSignalCooldown {
+			delete(m.skippedSignals, signalKey)
+		}
+	}
+}
+
+// shouldCheckSignal 检查是否应该检测信号（跳过信号检查）
+func (m *Manager) shouldCheckSignal(signal *model.Signal) bool {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	// 生成信号key：tokenAddress_signalType
+	signalKey := fmt.Sprintf("%s_%s", signal.TokenAddress, string(signal.Type))
+
+	// 检查是否在跳过信号冷却期内
+	if lastSkippedTime, exists := m.skippedSignals[signalKey]; exists {
+		if time.Since(lastSkippedTime) < m.skippedSignalCooldown {
+			return false // 还在冷却期内，不检测
+		}
+	}
+
+	return true // 可以检测
+}
+
+// recordSkippedSignal 记录被跳过的信号
+func (m *Manager) recordSkippedSignal(signal *model.Signal, reason string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	signalKey := fmt.Sprintf("%s_%s", signal.TokenAddress, string(signal.Type))
+	m.skippedSignals[signalKey] = time.Now()
+
+	logger.Info("📝 已记录跳过信号状态",
+		logger.String("token", signal.TokenAddress),
+		logger.String("type", string(signal.Type)),
+		logger.String("reason", reason),
+		logger.String("cooldown", m.skippedSignalCooldown.String()))
 }
 
 // PublishSignal 发布信号到所有发布器
 func (m *Manager) PublishSignal(signal *model.Signal) {
+	// 检查是否在跳过信号冷却期内
+	if !m.shouldCheckSignal(signal) {
+		logger.Debug("⏭️ 信号在跳过冷却期内，不再检测",
+			logger.String("type", string(signal.Type)),
+			logger.String("token", signal.TokenAddress),
+			logger.String("cooldown", m.skippedSignalCooldown.String()))
+		return
+	}
+
 	// 检查信号去重
 	if !m.shouldSendSignal(signal) {
 		logger.Debug("⏭️ 信号已在冷却期内，跳过发送",
@@ -150,12 +208,13 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 	if m.swapTxRepo != nil {
 		if ratio, err := m.swapTxRepo.GetTokenBundleRatio(signal.TokenAddress); err == nil {
 			bundleRatio = ratio
-			// 如果捆绑交易占比超过20%，跳过发送
+			// 如果捆绑交易占比超过20%，跳过发送并记录
 			if bundleRatio > 0.2 {
 				logger.Info("🚫 捆绑交易占比过高，跳过发送信号",
 					logger.String("token", signal.TokenAddress),
 					logger.Float64("bundle_ratio", bundleRatio*100),
 					logger.String("type", string(signal.Type)))
+				m.recordSkippedSignal(signal, "捆绑交易占比过高")
 				return
 			}
 		} else {
@@ -179,13 +238,14 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 			// 查询钓鱼钱包占比
 			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, holderAddresses); err == nil {
 				phishingRatio = ratio
-				// 如果钓鱼钱包占比超过20%，跳过发送
+				// 如果钓鱼钱包占比超过20%，跳过发送并记录
 				if phishingRatio > 0.2 {
 					logger.Info("🚫 钓鱼钱包占比过高，跳过发送信号",
 						logger.String("token", signal.TokenAddress),
 						logger.Float64("phishing_ratio", phishingRatio*100),
 						logger.Int("total_holders", len(holderAddresses)),
 						logger.String("type", string(signal.Type)))
+					m.recordSkippedSignal(signal, "钓鱼钱包占比过高")
 					return
 				}
 			} else {
@@ -262,13 +322,16 @@ func (m *Manager) startCleanupTask() {
 
 			// 输出当前缓存的信号数量
 			m.mutex.RLock()
-			cachedCount := len(m.sentSignals)
+			sentCount := len(m.sentSignals)
+			skippedCount := len(m.skippedSignals)
 			m.mutex.RUnlock()
 
-			if cachedCount > 0 {
+			if sentCount > 0 || skippedCount > 0 {
 				logger.Debug("🧹 清理过期信号记录完成",
-					logger.Int("cached_signals", cachedCount),
-					logger.String("cooldown", m.signalCooldown.String()))
+					logger.Int("sent_signals", sentCount),
+					logger.Int("skipped_signals", skippedCount),
+					logger.String("sent_cooldown", m.signalCooldown.String()),
+					logger.String("skipped_cooldown", m.skippedSignalCooldown.String()))
 			}
 		}
 	}
