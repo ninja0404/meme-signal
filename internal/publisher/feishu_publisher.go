@@ -159,6 +159,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 💵 5分钟交易量: %s
 🔗 捆绑交易占比: %s
 
+🔗 GMGN链接: https://gmgn.ai/sol/token/%s
 ⏰ 触发时间: %s`,
 		tokenSymbol,
 		tokenAddr,
@@ -170,6 +171,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		txCount5m,
 		volume5m,
 		bundleRatio,
+		tokenAddr,
 		signal.Timestamp.Format("2006-01-02 15:04:05"))
 
 	return message
