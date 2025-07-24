@@ -12,11 +12,12 @@ import (
 
 // Pipeline 数据处理管道
 type Pipeline struct {
-	sourceManager    *source.Manager
-	detectorEngine   *detector.Engine
-	publisherManager *publisher.Manager
-	ctx              context.Context
-	cancel           context.CancelFunc
+	sourceManager     *source.Manager
+	detectorEngine    *detector.Engine
+	publisherManager  *publisher.Manager
+	ctx               context.Context
+	cancel            context.CancelFunc
+	initialDataLoaded bool // 初始数据是否已加载完成
 }
 
 // NewPipeline 创建数据处理管道
@@ -26,8 +27,9 @@ func NewPipeline() *Pipeline {
 		sourceManager:  source.NewManager(),
 		detectorEngine: detector.NewEngine(),
 		// publisherManager 延迟创建，等待配置设置
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:               ctx,
+		cancel:            cancel,
+		initialDataLoaded: false, // 初始状态：数据未加载完成
 	}
 }
 
@@ -49,6 +51,11 @@ func (p *Pipeline) GetDetectorEngine() *detector.Engine {
 // GetPublisherManager 获取发布管理器
 func (p *Pipeline) GetPublisherManager() *publisher.Manager {
 	return p.publisherManager
+}
+
+// IsInitialDataLoaded 获取初始数据加载状态
+func (p *Pipeline) IsInitialDataLoaded() bool {
+	return p.initialDataLoaded
 }
 
 // Start 启动数据处理管道
@@ -114,6 +121,14 @@ func (p *Pipeline) processTransactions() {
 				return
 			}
 
+			// 检查初始数据是否已加载完成
+			if !p.initialDataLoaded {
+				if p.sourceManager.IsInitialDataLoaded() {
+					p.initialDataLoaded = true
+					logger.Info("🎯 初始数据加载完成，开始正常信号检测")
+				}
+			}
+
 			// 处理交易数据
 			p.handleTransaction(tx)
 		}
@@ -133,8 +148,15 @@ func (p *Pipeline) processSignals() {
 				return
 			}
 
-			// 发布信号
-			p.publisherManager.PublishSignal(signal)
+			// 只有在初始数据加载完成后才发布信号
+			if p.initialDataLoaded {
+				// 发布信号
+				p.publisherManager.PublishSignal(signal)
+			} else {
+				logger.Debug("⏳ 初始数据加载中，跳过信号发送",
+					logger.String("signal_type", string(signal.Type)),
+					logger.String("token", signal.TokenAddress))
+			}
 		}
 	}
 }

@@ -22,6 +22,9 @@ type TransactionSource interface {
 
 	// String 数据源名称
 	String() string
+
+	// IsInitialDataLoaded 检查初始数据是否已加载完成
+	IsInitialDataLoaded() bool
 }
 
 // Manager 数据源管理器
@@ -91,6 +94,16 @@ func (m *Manager) Transactions() <-chan *model.Transaction {
 // Errors 获取错误流
 func (m *Manager) Errors() <-chan error {
 	return m.errorChan
+}
+
+// IsInitialDataLoaded 检查所有数据源的初始数据是否已加载完成
+func (m *Manager) IsInitialDataLoaded() bool {
+	for _, source := range m.sources {
+		if !source.IsInitialDataLoaded() {
+			return false
+		}
+	}
+	return len(m.sources) > 0 // 确保至少有一个数据源
 }
 
 // listenSource 监听单个数据源

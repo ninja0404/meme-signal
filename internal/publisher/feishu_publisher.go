@@ -3,6 +3,7 @@ package publisher
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ninja0404/meme-signal/internal/model"
 	"github.com/ninja0404/meme-signal/internal/notifier"
@@ -120,6 +121,7 @@ func (p *FeishuPublisher) formatMarketCap(marketCap float64) string {
 
 // formatSignalMessage 格式化信号消息
 func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
 	// 从signal.Data中获取信息
 	tokenAddr := signal.TokenAddress
 	currentPrice := "N/A"
@@ -215,8 +217,8 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		bundleRatio,
 		phishingRatio,
 		tokenAddr,
-		signal.SourceTx.BlockTime.Format("2006-01-02 15:04:05"),
-		signal.Timestamp.Format("2006-01-02 15:04:05"))
+		signal.SourceTx.BlockTime.In(loc).Format("2006-01-02 15:04:05"),
+		signal.Timestamp.In(loc).Format("2006-01-02 15:04:05"))
 
 	return message
 }

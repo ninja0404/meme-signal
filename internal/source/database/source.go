@@ -71,14 +71,41 @@ func (s *Source) Stop() error {
 	return nil
 }
 
-// Subscribe 获取交易数据通道
+// Subscribe 订阅交易数据流
 func (s *Source) Subscribe() <-chan *model.Transaction {
+	return s.txChan
+}
+
+// Transactions 获取交易通道
+func (s *Source) Transactions() <-chan *model.Transaction {
 	return s.txChan
 }
 
 // Errors 获取错误通道
 func (s *Source) Errors() <-chan error {
 	return s.errChan
+}
+
+// String 数据源名称
+func (s *Source) String() string {
+	return "database"
+}
+
+// IsInitialDataLoaded 检查初始数据是否已加载完成
+func (s *Source) IsInitialDataLoaded() bool {
+	return !s.isFirstRun
+}
+
+// GetStats 获取数据源统计信息
+func (s *Source) GetStats() map[string]interface{} {
+	return map[string]interface{}{
+		"last_id":          s.lastId,
+		"is_first_run":     s.isFirstRun,
+		"query_interval":   s.config.QueryInterval.String(),
+		"batch_size":       s.config.BatchSize,
+		"tx_channel_size":  len(s.txChan),
+		"err_channel_size": len(s.errChan),
+	}
 }
 
 // startPolling 启动轮询
@@ -278,22 +305,5 @@ func (s *Source) sendError(err error) {
 	select {
 	case s.errChan <- err:
 	case <-s.ctx.Done():
-	}
-}
-
-// String 数据源名称
-func (s *Source) String() string {
-	return "database"
-}
-
-// GetStats 获取数据源统计信息
-func (s *Source) GetStats() map[string]interface{} {
-	return map[string]interface{}{
-		"last_id":          s.lastId,
-		"is_first_run":     s.isFirstRun,
-		"query_interval":   s.config.QueryInterval.String(),
-		"batch_size":       s.config.BatchSize,
-		"tx_channel_size":  len(s.txChan),
-		"err_channel_size": len(s.errChan),
 	}
 }
