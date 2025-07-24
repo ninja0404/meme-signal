@@ -201,7 +201,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 🎣 钓鱼钱包占比: %s
 
 🔗 GMGN链接: https://gmgn.ai/sol/token/%s
-⏰ 原始交易时间: %s,
+⏰ 原始交易时间: %s
 ⏰ 触发时间: %s`,
 		p.getSignalTypeEmoji(signal.Type),
 		p.getSignalTypeName(signal.Type),
