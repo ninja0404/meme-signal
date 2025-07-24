@@ -8,6 +8,7 @@ import (
 	"time"
 
 	simple "github.com/bitly/go-simplejson"
+	"gopkg.in/yaml.v3"
 
 	"github.com/ninja0404/meme-signal/pkg/config/reader"
 	"github.com/ninja0404/meme-signal/pkg/config/source"
@@ -25,7 +26,22 @@ type jsonValue struct {
 func newValues(ch *source.ChangeSet) (reader.Values, error) {
 	sj := simple.New()
 	data, _ := ReplaceEnvVars(ch.Data)
+
+	// 尝试直接解析JSON
 	if err := sj.UnmarshalJSON(data); err != nil {
+		// 如果是YAML格式，尝试先解析为map再转换为JSON
+		if ch.Format == "yaml" {
+			var yamlData map[string]interface{}
+			if yamlErr := yaml.Unmarshal(data, &yamlData); yamlErr == nil {
+				// 将yaml数据转换为JSON
+				if jsonData, jsonErr := json.Marshal(yamlData); jsonErr == nil {
+					if jsonParseErr := sj.UnmarshalJSON(jsonData); jsonParseErr == nil {
+						return &jsonValues{ch, sj}, nil
+					}
+				}
+			}
+		}
+		// 如果所有解析都失败，才设置为字符串
 		sj.SetPath(nil, string(ch.Data))
 	}
 	return &jsonValues{ch, sj}, nil

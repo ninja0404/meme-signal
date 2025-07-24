@@ -17,6 +17,10 @@ polarx:
   open_debug: false
   log_level: "silent"
 
+publisher:
+  feishu:
+    webhook_url: "https://open.larksuite.com/open-apis/bot/v2/hook/044b0167-96a8-4979-93ed-166b18496ca4"
+
 kafka:
   brokers:
     - alikafka-pre-public-intl-sg-nnu47okt601-1-vpc.alikafka.aliyuncs.com:9094

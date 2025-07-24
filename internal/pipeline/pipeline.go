@@ -23,12 +23,17 @@ type Pipeline struct {
 func NewPipeline() *Pipeline {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Pipeline{
-		sourceManager:    source.NewManager(),
-		detectorEngine:   detector.NewEngine(),
-		publisherManager: publisher.NewManager(),
-		ctx:              ctx,
-		cancel:           cancel,
+		sourceManager:  source.NewManager(),
+		detectorEngine: detector.NewEngine(),
+		// publisherManager 延迟创建，等待配置设置
+		ctx:    ctx,
+		cancel: cancel,
 	}
+}
+
+// SetPublisherConfig 设置发布器配置并创建发布管理器
+func (p *Pipeline) SetPublisherConfig(config publisher.PublisherConfig) {
+	p.publisherManager = publisher.NewManager(config)
 }
 
 // GetSourceManager 获取数据源管理器

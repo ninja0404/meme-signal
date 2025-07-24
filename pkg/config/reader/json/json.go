@@ -64,9 +64,12 @@ func (j *jsonReader) Values(ch *source.ChangeSet) (reader.Values, error) {
 	if ch == nil {
 		return nil, errors.New("changeset is nil")
 	}
-	if ch.Format != "json" {
-		return nil, errors.New("unsupported format")
+
+	// 检查是否有对应格式的encoder
+	if _, ok := j.opts.Encoding[ch.Format]; !ok && ch.Format != "json" {
+		return nil, errors.New("unsupported format: " + ch.Format)
 	}
+
 	return newValues(ch)
 }
 

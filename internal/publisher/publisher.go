@@ -12,6 +12,11 @@ import (
 	"github.com/ninja0404/meme-signal/pkg/logger"
 )
 
+// PublisherConfig 发布器配置接口
+type PublisherConfig interface {
+	GetFeishuWebhookURL() string
+}
+
 // Publisher 信号发布器接口
 type Publisher interface {
 	// Publish 发布信号
@@ -31,6 +36,7 @@ type Manager struct {
 	cancel          context.CancelFunc
 	tokenInfoRepo   repo.TokenInfoRepo
 	tokenHolderRepo repo.TokenHolderRepo
+	config          PublisherConfig
 
 	// 信号去重管理
 	sentSignals    map[string]time.Time // key: tokenAddress_signalType, value: 发送时间
@@ -39,12 +45,13 @@ type Manager struct {
 }
 
 // NewManager 创建发布管理器
-func NewManager() *Manager {
+func NewManager(config PublisherConfig) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	manager := &Manager{
 		publishers:     make([]Publisher, 0),
 		ctx:            ctx,
 		cancel:         cancel,
+		config:         config,
 		sentSignals:    make(map[string]time.Time),
 		signalCooldown: 1 * time.Hour, // 1小时内同一代币同一类型信号只发送一次
 	}
@@ -64,8 +71,16 @@ func (m *Manager) registerDefaultPublishers() {
 	m.AddPublisher(&LogPublisher{})
 
 	// 注册飞书发布器
-	feishuWebhookURL := "https://open.larksuite.com/open-apis/bot/v2/hook/abacd303-7553-411b-b4db-fce9c2ef819c"
-	m.AddPublisher(NewFeishuPublisher(feishuWebhookURL, m.tokenInfoRepo, m.tokenHolderRepo))
+	if m.config != nil {
+		webhookURL := m.config.GetFeishuWebhookURL()
+		if webhookURL != "" {
+			m.AddPublisher(NewFeishuPublisher(webhookURL, m.tokenInfoRepo, m.tokenHolderRepo))
+		} else {
+			logger.Warn("⚠️ 飞书发布器缺少webhook URL配置")
+		}
+	} else {
+		logger.Warn("⚠️ Publisher配置为空")
+	}
 
 	// 可以添加更多发布器：Telegram、Discord、WebHook等
 	// m.AddPublisher(&TelegramPublisher{token: "your-bot-token"})

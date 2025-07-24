@@ -98,6 +98,10 @@ func (app *Application) setupDataSources() {
 	dbSource := database.NewSource(sourceConfig, app.swapTxRepo)
 	app.pipeline.GetSourceManager().AddSource(dbSource)
 
+	// 设置发布管理器配置
+	publisherConfig := app.configManager.GetPublisherConfig()
+	app.pipeline.SetPublisherConfig(publisherConfig)
+
 	// 配置发布管理器的Repository
 	app.pipeline.GetPublisherManager().SetRepositories(app.tokenInfoRepo, app.tokenHolderRepo)
 

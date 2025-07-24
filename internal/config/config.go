@@ -10,17 +10,28 @@ import (
 
 // AppConfig 应用配置结构
 type AppConfig struct {
-	Logger LoggerConfig         `yaml:"logger"`
-	PolarX polardbx.MysqlConfig `yaml:"polarx"`
+	Logger    LoggerConfig         `yaml:"logger" json:"logger"`
+	Publisher PublisherConfig      `yaml:"publisher" json:"publisher"`
+	PolarX    polardbx.MysqlConfig `yaml:"polarx" json:"polarx"`
 }
 
 // LoggerConfig 日志配置
 type LoggerConfig struct {
-	Output     string `yaml:"output"`
-	Debug      bool   `yaml:"debug"`
-	Level      string `yaml:"level"`
-	AddCaller  bool   `yaml:"add_caller"`
-	CallerSkip int    `yaml:"caller_skip"`
+	Output     string `yaml:"output" json:"output"`
+	Debug      bool   `yaml:"debug" json:"debug"`
+	Level      string `yaml:"level" json:"level"`
+	AddCaller  bool   `yaml:"add_caller" json:"add_caller"`
+	CallerSkip int    `yaml:"caller_skip" json:"caller_skip"`
+}
+
+// PublisherConfig 发布器配置
+type PublisherConfig struct {
+	Feishu FeishuConfig `yaml:"feishu" json:"feishu"`
+}
+
+// FeishuConfig 飞书发布器配置
+type FeishuConfig struct {
+	WebhookURL string `yaml:"webhook_url" json:"webhook_url"`
 }
 
 // DatabaseConfig 数据库数据源配置
@@ -42,7 +53,7 @@ func NewManager() *Manager {
 
 // Load 加载配置文件
 func (m *Manager) Load(configPath string) error {
-	// 加载配置文件
+	// 使用默认config，它已经支持yaml格式了
 	err := config.Load(file.NewSource(
 		file.WithPath(configPath),
 		source.WithFormat("yaml"),
@@ -75,6 +86,16 @@ func (m *Manager) GetLoggerConfig() LoggerConfig {
 // GetDatabaseConfig 获取数据库配置
 func (m *Manager) GetDatabaseConfig() polardbx.MysqlConfig {
 	return m.config.PolarX
+}
+
+// GetPublisherConfig 获取发布器配置
+func (m *Manager) GetPublisherConfig() PublisherConfig {
+	return m.config.Publisher
+}
+
+// GetFeishuWebhookURL 获取飞书Webhook URL
+func (p PublisherConfig) GetFeishuWebhookURL() string {
+	return p.Feishu.WebhookURL
 }
 
 // InitLogger 初始化日志系统
