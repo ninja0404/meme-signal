@@ -267,6 +267,16 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 	signal.Data["bundle_ratio"] = bundleRatio
 	signal.Data["phishing_ratio"] = phishingRatio
 
+	if count, err := m.tokenHolderRepo.GetHolderCount(signal.TokenAddress); err == nil {
+		if count < 200 {
+			logger.Info("持仓人数小于200，跳过发送信号",
+				logger.String("token", signal.TokenAddress),
+				logger.Int64("holder_count", count))
+			return
+		}
+		signal.Data["holder_count"] = count
+	}
+
 	for _, publisher := range m.publishers {
 		if err := publisher.Publish(signal); err != nil {
 			logger.Error("发布信号失败",
