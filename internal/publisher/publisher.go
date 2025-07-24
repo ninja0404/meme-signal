@@ -283,9 +283,6 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 
 			// 如果是飞书发布器且发送成功，记录已发送信号
 			m.recordSentSignal(signal)
-			logger.Debug("📝 已记录信号发送状态",
-				logger.String("token", signal.TokenAddress),
-				logger.String("type", string(signal.Type)))
 		}
 	}
 }
