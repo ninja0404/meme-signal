@@ -199,6 +199,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 🎣 钓鱼钱包占比: %s
 
 🔗 GMGN链接: https://gmgn.ai/sol/token/%s
+⏰ 原始交易时间: %s,
 ⏰ 触发时间: %s`,
 		p.getSignalTypeEmoji(signal.Type),
 		p.getSignalTypeName(signal.Type),
@@ -214,6 +215,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		bundleRatio,
 		phishingRatio,
 		tokenAddr,
+		signal.SourceTx.BlockTime.Format("2006-01-02 15:04:05"),
 		signal.Timestamp.Format("2006-01-02 15:04:05"))
 
 	return message
