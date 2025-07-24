@@ -125,6 +125,8 @@ func (p *Pipeline) processTransactions() {
 			if !p.initialDataLoaded {
 				if p.sourceManager.IsInitialDataLoaded() {
 					p.initialDataLoaded = true
+					// 通知检测引擎初始数据已加载完成
+					p.detectorEngine.SetInitialDataLoaded(true)
 					logger.Info("🎯 初始数据加载完成，开始正常信号检测")
 				}
 			}

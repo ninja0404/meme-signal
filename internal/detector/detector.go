@@ -35,11 +35,12 @@ type Worker struct {
 	SignalChan   chan *model.Signal
 	Detectors    []Detector
 	ctx          context.Context
+	engine       *Engine // 引用Engine以检查初始数据状态
 	mutex        sync.RWMutex
 }
 
 // NewWorker 创建新的工作协程
-func NewWorker(id int, ctx context.Context, signalChan chan *model.Signal) *Worker {
+func NewWorker(id int, ctx context.Context, signalChan chan *model.Signal, engine *Engine) *Worker {
 	return &Worker{
 		ID:           id,
 		TokenWindows: make(map[string]*TokenWindow),
@@ -47,6 +48,7 @@ func NewWorker(id int, ctx context.Context, signalChan chan *model.Signal) *Work
 		SignalChan:   signalChan,
 		Detectors:    make([]Detector, 0),
 		ctx:          ctx,
+		engine:       engine,
 	}
 }
 
@@ -89,6 +91,9 @@ func (w *Worker) processTransaction(tx *model.Transaction) {
 	if !exists {
 		window = NewTokenWindow(tokenAddr)
 		w.TokenWindows[tokenAddr] = window
+		logger.Info("📈 新代币加入监控",
+			logger.String("token", tokenAddr),
+			logger.Int("worker_id", w.ID))
 	}
 
 	w.mutex.Unlock()
@@ -96,9 +101,15 @@ func (w *Worker) processTransaction(tx *model.Transaction) {
 	// 添加交易到窗口
 	window.AddTransaction(tx)
 
-	// 获取统计数据并运行检测器
-	//stats := window.GetStats()
-	w.runDetectors(window, tx)
+	// 只有在初始数据加载完成后才运行检测器
+	if w.engine.IsInitialDataLoaded() {
+		// 获取统计数据并运行检测器
+		w.runDetectors(window, tx)
+	} else {
+		logger.Debug("⏳ 初始数据加载中，跳过检测器运行",
+			logger.String("token", tokenAddr),
+			logger.Int("worker_id", w.ID))
+	}
 }
 
 // runDetectors 运行所有检测器
@@ -142,27 +153,29 @@ func (w *Worker) cleanup() {
 
 // Engine 信号检测引擎
 type Engine struct {
-	workers          []*Worker
-	signalChan       chan *model.Signal
-	ctx              context.Context
-	cancel           context.CancelFunc
-	externalRegistry *DetectorRegistry // 外部检测器注册表
+	workers           []*Worker
+	signalChan        chan *model.Signal
+	ctx               context.Context
+	cancel            context.CancelFunc
+	externalRegistry  *DetectorRegistry // 外部检测器注册表
+	initialDataLoaded bool              // 初始数据是否已加载完成
 }
 
 // NewEngine 创建信号检测引擎
 func NewEngine() *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 	engine := &Engine{
-		workers:          make([]*Worker, WorkerCount),
-		signalChan:       make(chan *model.Signal, 1000),
-		ctx:              ctx,
-		cancel:           cancel,
-		externalRegistry: nil, // 初始化为nil，之后可以通过SetDetectorRegistry设置
+		workers:           make([]*Worker, WorkerCount),
+		signalChan:        make(chan *model.Signal, 1000),
+		ctx:               ctx,
+		cancel:            cancel,
+		externalRegistry:  nil,   // 初始化为nil，之后可以通过SetDetectorRegistry设置
+		initialDataLoaded: false, // 初始状态：数据未加载完成
 	}
 
 	// 创建工作协程
 	for i := 0; i < WorkerCount; i++ {
-		engine.workers[i] = NewWorker(i, ctx, engine.signalChan)
+		engine.workers[i] = NewWorker(i, ctx, engine.signalChan, engine)
 	}
 
 	return engine
@@ -239,6 +252,21 @@ func (e *Engine) statsMonitor() {
 // SetDetectorRegistry 设置外部检测器注册表
 func (e *Engine) SetDetectorRegistry(registry *DetectorRegistry) {
 	e.externalRegistry = registry
+}
+
+// SetInitialDataLoaded 设置初始数据加载完成状态
+func (e *Engine) SetInitialDataLoaded(loaded bool) {
+	e.initialDataLoaded = loaded
+	if loaded {
+		logger.Info("🎯 检测引擎已启用信号检测")
+	} else {
+		logger.Info("⏳ 检测引擎等待初始数据加载")
+	}
+}
+
+// IsInitialDataLoaded 获取初始数据加载状态
+func (e *Engine) IsInitialDataLoaded() bool {
+	return e.initialDataLoaded
 }
 
 // createDefaultDetectors 创建默认检测器
