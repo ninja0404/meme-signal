@@ -138,9 +138,21 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 
 	// 查询持仓人数
 	holderCount := "N/A"
+	top10HoldersRatio := "N/A"
 
 	if count, ok := signal.Data["holder_count"].(int64); ok {
 		holderCount = fmt.Sprintf("%d个", count)
+	}
+
+	// 查询top10持仓人总持仓比例
+	if p.tokenHolderRepo != nil {
+		if ratio, err := p.tokenHolderRepo.GetTop10HoldersRatio(tokenAddr); err == nil {
+			top10HoldersRatio = fmt.Sprintf("%.2f%%", ratio)
+		} else {
+			// logger.Warn("⚠️ 查询top10持仓比例失败",
+			// 	logger.String("token", tokenAddr),
+			// 	logger.FieldErr(err))
+		}
 	}
 
 	// 从Data字段获取详细信息
@@ -195,6 +207,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 📈 5分钟涨幅: %s
 👥 独立地址数: %s
 🏦 持仓人数: %s
+👑 Top10持仓占比: %s
 📊 5分钟交易数: %s
 💵 5分钟交易量: %s
 🔗 捆绑交易占比: %s
@@ -212,6 +225,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		priceChange5m,
 		uniqueWallets,
 		holderCount,
+		top10HoldersRatio,
 		txCount5m,
 		volume5m,
 		bundleRatio,
