@@ -15,7 +15,7 @@ type TokenHolderRepo interface {
 	GetTokenHolders(tokenAddress string) ([]*model.BiTokenHolder, error)
 
 	// GetTop10HoldersRatio 获取top10持仓人的总持仓比例
-	GetTop10HoldersRatio(tokenAddress string) (float64, error)
+	GetTop10HoldersRatio(tokenAddress string, supply decimal.Decimal) (float64, error)
 }
 
 type tokenHolderRepoImpl struct {
@@ -60,7 +60,11 @@ func (r *tokenHolderRepoImpl) GetTokenHolders(tokenAddress string) ([]*model.BiT
 }
 
 // GetTop10HoldersRatio 获取top10持仓人的总持仓比例
-func (r *tokenHolderRepoImpl) GetTop10HoldersRatio(tokenAddress string) (float64, error) {
+func (r *tokenHolderRepoImpl) GetTop10HoldersRatio(tokenAddress string, supply decimal.Decimal) (float64, error) {
+	if supply.IsZero() {
+		return 0, nil
+	}
+
 	var holders []*model.BiTokenHolder
 
 	// 查询所有持仓人，按持仓量降序排序，取前10个
@@ -83,22 +87,7 @@ func (r *tokenHolderRepoImpl) GetTop10HoldersRatio(tokenAddress string) (float64
 		top10Total = top10Total.Add(holder.Amount)
 	}
 
-	// 查询总持仓量
-	var totalAmount decimal.Decimal
-	result = r.db.Model(&model.BiTokenHolder{}).
-		Where("token_address = ? AND amount > 0", tokenAddress).
-		Select("COALESCE(SUM(amount), 0)").
-		Scan(&totalAmount)
-
-	if result.Error != nil {
-		return 0, result.Error
-	}
-
-	if totalAmount.IsZero() {
-		return 0, nil
-	}
-
-	// 计算比例（百分比）
-	ratio := top10Total.Div(totalAmount).InexactFloat64() * 100
+	// 计算比例（百分比）：top10持仓量 / 总供应量 * 100
+	ratio := top10Total.Div(supply).InexactFloat64() * 100
 	return ratio, nil
 }

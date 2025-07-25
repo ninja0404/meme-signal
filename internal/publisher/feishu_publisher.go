@@ -144,17 +144,6 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		holderCount = fmt.Sprintf("%d个", count)
 	}
 
-	// 查询top10持仓人总持仓比例
-	if p.tokenHolderRepo != nil {
-		if ratio, err := p.tokenHolderRepo.GetTop10HoldersRatio(tokenAddr); err == nil {
-			top10HoldersRatio = fmt.Sprintf("%.2f%%", ratio)
-		} else {
-			// logger.Warn("⚠️ 查询top10持仓比例失败",
-			// 	logger.String("token", tokenAddr),
-			// 	logger.FieldErr(err))
-		}
-	}
-
 	// 从Data字段获取详细信息
 	if signal.Data != nil {
 		if price, ok := signal.Data["current_price"].(string); ok {
@@ -171,6 +160,17 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 					if !priceD.IsZero() && !supply.IsZero() {
 						marketCapValue, _ := priceD.Mul(supply).Float64()
 						marketCap = p.formatMarketCap(marketCapValue)
+					}
+
+					// 查询top10持仓人总持仓比例
+					if p.tokenHolderRepo != nil {
+						if ratio, err := p.tokenHolderRepo.GetTop10HoldersRatio(tokenAddr, supply); err == nil {
+							top10HoldersRatio = fmt.Sprintf("%.2f%%", ratio)
+						} else {
+							// logger.Warn("⚠️ 查询top10持仓比例失败",
+							// 	logger.String("token", tokenAddr),
+							// 	logger.FieldErr(err))
+						}
 					}
 				}
 			}
