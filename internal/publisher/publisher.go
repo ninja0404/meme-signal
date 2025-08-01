@@ -235,7 +235,7 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 			}
 			signal.Data["token_symbol"] = tokenInfo.Symbol
 			signal.Data["token_supply"] = tokenInfo.Supply
-			signal.Data["current_price"] = tokenInfo.CurrentPrice
+			signal.Data["current_price"] = tokenInfo.CurrentPrice.String()
 
 			// 获取持仓地址列表
 			var holderAddresses []string
