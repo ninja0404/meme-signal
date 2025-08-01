@@ -226,24 +226,25 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 
 	// 检查钓鱼钱包占比
 	phishingRatio := 0.0
-	if m.tokenHolderRepo != nil && m.swapTxRepo != nil {
-		// 获取持仓地址列表
-		if holders, err := m.tokenHolderRepo.GetTokenHolders(signal.TokenAddress); err == nil {
-			// 提取持仓地址
-			holderAddresses := make([]string, len(holders))
-			for i, holder := range holders {
-				holderAddresses[i] = holder.WalletAddress
+	if m.swapTxRepo != nil && m.tokenInfoRepo != nil {
+		// 获取代币信息（包含总供应量）
+		if tokenInfo, err := m.tokenInfoRepo.GetTokenInfo(signal.TokenAddress); err == nil {
+			// 将代币信息添加到信号数据中，供发布器使用，避免重复查询
+			if signal.Data == nil {
+				signal.Data = make(map[string]interface{})
 			}
+			signal.Data["token_symbol"] = tokenInfo.Symbol
+			signal.Data["token_supply"] = tokenInfo.Supply
+			signal.Data["current_price"] = tokenInfo.CurrentPrice
 
-			// 查询钓鱼钱包占比
-			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, holderAddresses); err == nil {
+			// 查询钓鱼钱包持仓占比
+			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, tokenInfo.Supply); err == nil {
 				phishingRatio = ratio
 				// 如果钓鱼钱包占比超过20%，跳过发送并记录
-				if phishingRatio > 0.2 {
+				if phishingRatio > 20.0 {
 					logger.Info("🚫 钓鱼钱包占比过高，跳过发送信号",
 						logger.String("token", signal.TokenAddress),
-						logger.Float64("phishing_ratio", phishingRatio*100),
-						logger.Int("total_holders", len(holderAddresses)),
+						logger.Float64("phishing_ratio", phishingRatio),
 						logger.String("type", string(signal.Type)))
 					m.recordSkippedSignal(signal, "钓鱼钱包占比过高")
 					return
@@ -254,7 +255,7 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 					logger.FieldErr(err))
 			}
 		} else {
-			logger.Warn("⚠️ 查询持仓地址失败",
+			logger.Warn("⚠️ 查询代币信息失败",
 				logger.String("token", signal.TokenAddress),
 				logger.FieldErr(err))
 		}

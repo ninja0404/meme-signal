@@ -132,46 +132,47 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	bundleRatio := "N/A"
 	phishingRatio := "N/A"
 
-	// 查询代币市值计算所需数据
+	// 从Data字段获取代币信息（避免重复查询）
 	tokenSymbol := "UNKNOWN"
 	marketCap := "N/A"
+	top10HoldersRatio := "N/A"
 
 	// 查询持仓人数
 	holderCount := "N/A"
-	top10HoldersRatio := "N/A"
-
 	if count, ok := signal.Data["holder_count"].(int64); ok {
 		holderCount = fmt.Sprintf("%d个", count)
 	}
 
 	// 从Data字段获取详细信息
 	if signal.Data != nil {
+		// 获取代币符号
+		if symbol, ok := signal.Data["token_symbol"].(string); ok && symbol != "" {
+			tokenSymbol = symbol
+		}
+
+		// 获取代币供应量
+		var supply decimal.Decimal
+		if supplyData, ok := signal.Data["token_supply"]; ok {
+			if s, ok := supplyData.(decimal.Decimal); ok {
+				supply = s
+			}
+		}
+
 		if price, ok := signal.Data["current_price"].(string); ok {
 			currentPrice = "$" + price
 
 			priceD := decimal.RequireFromString(price)
 
-			if p.tokenInfoRepo != nil {
-				if symbol, _, supply, err := p.tokenInfoRepo.GetTokenMarketData(tokenAddr); err == nil {
-					if symbol != "" {
-						tokenSymbol = symbol
-					}
-					// 计算市值 = 当前价格 * 总供应量
-					if !priceD.IsZero() && !supply.IsZero() {
-						marketCapValue, _ := priceD.Mul(supply).Float64()
-						marketCap = p.formatMarketCap(marketCapValue)
-					}
+			// 计算市值 = 当前价格 * 总供应量
+			if !priceD.IsZero() && !supply.IsZero() {
+				marketCapValue, _ := priceD.Mul(supply).Float64()
+				marketCap = p.formatMarketCap(marketCapValue)
+			}
 
-					// 查询top10持仓人总持仓比例
-					if p.tokenHolderRepo != nil {
-						if ratio, err := p.tokenHolderRepo.GetTop10HoldersRatio(tokenAddr, supply); err == nil {
-							top10HoldersRatio = fmt.Sprintf("%.2f%%", ratio)
-						} else {
-							// logger.Warn("⚠️ 查询top10持仓比例失败",
-							// 	logger.String("token", tokenAddr),
-							// 	logger.FieldErr(err))
-						}
-					}
+			// 查询top10持仓人总持仓比例
+			if p.tokenHolderRepo != nil && !supply.IsZero() {
+				if ratio, err := p.tokenHolderRepo.GetTop10HoldersRatio(tokenAddr, supply); err == nil {
+					top10HoldersRatio = fmt.Sprintf("%.2f%%", ratio)
 				}
 			}
 		}

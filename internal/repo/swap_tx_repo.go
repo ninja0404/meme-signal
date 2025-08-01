@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ninja0404/meme-signal/internal/model"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -26,8 +27,8 @@ type SwapTxRepo interface {
 	// GetTokenBundleRatio 获取指定代币的捆绑交易占比
 	GetTokenBundleRatio(tokenAddress string) (float64, error)
 
-	// GetTokenPhishingRatio 获取指定代币的钓鱼钱包占比
-	GetTokenPhishingRatio(tokenAddress string, holderAddresses []string) (float64, error)
+	// GetTokenPhishingRatio 获取指定代币的钓鱼钱包持仓占比（钓鱼钱包持仓数量占总供应量的比例）
+	GetTokenPhishingRatio(tokenAddress string, supply decimal.Decimal) (float64, error)
 }
 
 type swapTxRepoImpl struct {
@@ -138,32 +139,41 @@ func (r *swapTxRepoImpl) GetTokenBundleRatio(tokenAddress string) (float64, erro
 	return ratio, nil
 }
 
-// GetTokenPhishingRatio 获取指定代币的钓鱼钱包占比
-func (r *swapTxRepoImpl) GetTokenPhishingRatio(tokenAddress string, holderAddresses []string) (float64, error) {
-	// 如果没有持仓地址，返回0
-	if len(holderAddresses) == 0 {
+// GetTokenPhishingRatio 获取指定代币的钓鱼钱包持仓占比
+func (r *swapTxRepoImpl) GetTokenPhishingRatio(tokenAddress string, supply decimal.Decimal) (float64, error) {
+	if supply.IsZero() {
 		return 0, nil
 	}
 
-	// 查询这些地址中哪些是钓鱼钱包（作为UserWallet2接收过转账）
+	// 查询钓鱼钱包地址（作为UserWallet2接收过转账的地址）
 	var phishingAddresses []string
 	err := r.db.Model(&model.SwapTx{}).
 		Where("token_address = ? AND action = 3", tokenAddress). // action=3是转账
-		Where("user_wallet2 IN (?)", holderAddresses).           // UserWallet2在持仓地址列表中
 		Distinct("user_wallet2").
 		Pluck("user_wallet2", &phishingAddresses).Error
 	if err != nil {
 		return 0, err
 	}
 
-	// 计算钓鱼钱包占比
-	totalHolders := len(holderAddresses)
-	phishingCount := len(phishingAddresses)
-
-	if totalHolders == 0 {
+	if len(phishingAddresses) == 0 {
 		return 0, nil
 	}
 
-	ratio := float64(phishingCount) / float64(totalHolders)
+	// 查询钓鱼钱包的总持仓数量
+	var phishingTotal decimal.Decimal
+	err = r.db.Model(&model.BiTokenHolder{}).
+		Where("token_address = ? AND wallet_address IN (?) AND amount > 0", tokenAddress, phishingAddresses).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&phishingTotal).Error
+	if err != nil {
+		return 0, err
+	}
+
+	if phishingTotal.IsZero() {
+		return 0, nil
+	}
+
+	// 计算钓鱼钱包持仓占总供应量的比例（百分比）
+	ratio := phishingTotal.Div(supply).InexactFloat64() * 100
 	return ratio, nil
 }
