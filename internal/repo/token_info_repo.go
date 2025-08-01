@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"errors"
 	"github.com/ninja0404/meme-signal/internal/model"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -37,7 +38,7 @@ func (r *tokenInfoRepoImpl) GetTokenSymbol(tokenAddress string) (string, error) 
 		First(&tokenInfo).Error
 
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "UNKNOWN", nil // 如果没找到，返回默认值
 		}
 		return "", err
