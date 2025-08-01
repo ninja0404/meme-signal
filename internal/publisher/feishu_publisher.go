@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"fmt"
+	"github.com/ninja0404/meme-signal/pkg/utils"
 	"strconv"
 	"time"
 
@@ -159,7 +160,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		}
 
 		if price, ok := signal.Data["current_price"].(string); ok {
-			currentPrice = "$" + price
+			currentPrice = utils.FormatPrice(price)
 
 			priceD := decimal.RequireFromString(price)
 
