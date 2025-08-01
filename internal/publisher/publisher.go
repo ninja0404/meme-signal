@@ -237,8 +237,18 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 			signal.Data["token_supply"] = tokenInfo.Supply
 			signal.Data["current_price"] = tokenInfo.CurrentPrice
 
+			// 获取持仓地址列表
+			var holderAddresses []string
+			if holders, err := m.tokenHolderRepo.GetTokenHolders(signal.TokenAddress); err == nil {
+				// 提取持仓地址
+				holderAddresses = make([]string, len(holders))
+				for i, holder := range holders {
+					holderAddresses[i] = holder.WalletAddress
+				}
+			}
+
 			// 查询钓鱼钱包持仓占比
-			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, tokenInfo.Supply); err == nil {
+			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, holderAddresses, tokenInfo.Supply); err == nil {
 				phishingRatio = ratio
 				// 如果钓鱼钱包占比超过20%，跳过发送并记录
 				if phishingRatio > 20.0 {

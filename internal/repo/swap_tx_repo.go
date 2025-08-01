@@ -28,7 +28,7 @@ type SwapTxRepo interface {
 	GetTokenBundleRatio(tokenAddress string) (float64, error)
 
 	// GetTokenPhishingRatio 获取指定代币的钓鱼钱包持仓占比（钓鱼钱包持仓数量占总供应量的比例）
-	GetTokenPhishingRatio(tokenAddress string, supply decimal.Decimal) (float64, error)
+	GetTokenPhishingRatio(tokenAddress string, holderAddresses []string, supply decimal.Decimal) (float64, error)
 }
 
 type swapTxRepoImpl struct {
@@ -140,15 +140,16 @@ func (r *swapTxRepoImpl) GetTokenBundleRatio(tokenAddress string) (float64, erro
 }
 
 // GetTokenPhishingRatio 获取指定代币的钓鱼钱包持仓占比
-func (r *swapTxRepoImpl) GetTokenPhishingRatio(tokenAddress string, supply decimal.Decimal) (float64, error) {
-	if supply.IsZero() {
+func (r *swapTxRepoImpl) GetTokenPhishingRatio(tokenAddress string, holderAddresses []string, supply decimal.Decimal) (float64, error) {
+	if supply.IsZero() || len(holderAddresses) == 0 {
 		return 0, nil
 	}
 
-	// 查询钓鱼钱包地址（作为UserWallet2接收过转账的地址）
+	// 在持仓地址中查询哪些是钓鱼钱包（作为UserWallet2接收过转账的地址）
 	var phishingAddresses []string
 	err := r.db.Model(&model.SwapTx{}).
 		Where("token_address = ? AND action = 3", tokenAddress). // action=3是转账
+		Where("user_wallet2 IN (?)", holderAddresses).           // UserWallet2在持仓地址列表中
 		Distinct("user_wallet2").
 		Pluck("user_wallet2", &phishingAddresses).Error
 	if err != nil {
