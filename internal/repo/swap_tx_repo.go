@@ -174,7 +174,7 @@ func (r *swapTxRepoImpl) GetTokenPhishingRatio(tokenAddress string, holderAddres
 		return 0, nil
 	}
 
-	// 计算钓鱼钱包持仓占总供应量的比例（百分比）
-	ratio := phishingTotal.Div(supply).InexactFloat64() * 100
+	// 计算钓鱼钱包持仓占总供应量的比例
+	ratio := phishingTotal.Div(supply).InexactFloat64()
 	return ratio, nil
 }

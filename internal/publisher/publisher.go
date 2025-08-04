@@ -251,7 +251,7 @@ func (m *Manager) PublishSignal(signal *model.Signal) {
 			if ratio, err := m.swapTxRepo.GetTokenPhishingRatio(signal.TokenAddress, holderAddresses, tokenInfo.Supply); err == nil {
 				phishingRatio = ratio
 				// 如果钓鱼钱包占比超过20%，跳过发送并记录
-				if phishingRatio > 20.0 {
+				if phishingRatio > 0.2 {
 					logger.Info("🚫 钓鱼钱包占比过高，跳过发送信号",
 						logger.String("token", signal.TokenAddress),
 						logger.Float64("phishing_ratio", phishingRatio),
