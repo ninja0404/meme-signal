@@ -119,7 +119,7 @@ func FormatPrice(raw string) string {
 	// 3️⃣ 拼接小数部分
 	var frac string
 	if zeroPrefix > 3 {
-		frac = fmt.Sprintf("0{%d}%s", zeroPrefix, digits)
+		frac = fmt.Sprintf("0%s%s", ToSubscriptNumber(strconv.Itoa(zeroPrefix)), digits)
 	} else {
 		frac = strings.Repeat("0", zeroPrefix) + digits
 	}
@@ -133,4 +133,28 @@ func splitOnce(s, sep string) (intPart, decPart string) {
 		return s[:idx], s[idx+1:]
 	}
 	return s, ""
+}
+
+var subscriptMap = map[rune]rune{
+	'0': '₀',
+	'1': '₁',
+	'2': '₂',
+	'3': '₃',
+	'4': '₄',
+	'5': '₅',
+	'6': '₆',
+	'7': '₇',
+	'8': '₈',
+	'9': '₉',
+}
+
+// 把普通数字字符串转成下角标字符串
+func ToSubscriptNumber(input string) string {
+	var builder strings.Builder
+	for _, r := range input {
+		if sub, ok := subscriptMap[r]; ok {
+			builder.WriteRune(sub)
+		}
+	}
+	return builder.String()
 }
