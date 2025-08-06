@@ -54,6 +54,7 @@ func (d *ConfigurableDetector) Detect(stats *model.TokenStats, tx *model.Transac
 				"trigger_time":    time.Now().Format("2006-01-02 15:04:05"),
 				"trigger_tx_sig":  tx.Signature,
 				"current_price":   stats.CurrentPrice.Truncate(8).String(),
+				"start_price":     stats.StartPrice.Truncate(8).String(),
 				"price_change_5m": stats.PriceChangePercent.Truncate(2).String(),
 				"unique_wallets":  stats.UniqueHolders,
 				"tx_count_5m":     stats.TxCount5m,

@@ -125,6 +125,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	// 从signal.Data中获取信息
 	tokenAddr := signal.TokenAddress
+	startPrice := "N/A"
 	currentPrice := "N/A"
 	priceChange5m := "N/A"
 	uniqueWallets := "N/A"
@@ -157,6 +158,10 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 			if s, ok := supplyData.(decimal.Decimal); ok {
 				supply = s
 			}
+		}
+
+		if price, ok := signal.Data["start_price"].(string); ok {
+			startPrice = utils.FormatPrice(price)
 		}
 
 		if price, ok := signal.Data["current_price"].(string); ok {
@@ -204,6 +209,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 %s 信号类型: %s
 🪙 代币符号: %s
 📍 代币地址: %s
+💰 开始价格: %s
 💰 当前价格: %s
 💎 当前市值: %s
 📈 5分钟涨幅: %s
@@ -222,6 +228,7 @@ func (p *FeishuPublisher) formatSignalMessage(signal *model.Signal) string {
 		p.getSignalTypeName(signal.Type),
 		tokenSymbol,
 		tokenAddr,
+		startPrice,
 		currentPrice,
 		marketCap,
 		priceChange5m,
